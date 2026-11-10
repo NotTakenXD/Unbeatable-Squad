@@ -22,3 +22,6 @@ logs/
 
 # Keep the example env file
 !.env.example
+
+# Demo login list (contains passwords)
+DEMO_ACCOUNTS.md

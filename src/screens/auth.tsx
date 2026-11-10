@@ -1,22 +1,33 @@
 import { useState, type FormEvent } from "react";
 import { ErrorNote, Logo, PrimaryButton, TopBar, type Role } from "../ui";
-import { signIn, signUp } from "../lib/api";
+import { EmailNotConfirmedError, resendConfirmation, signIn, signUp } from "../lib/api";
 import { readError } from "./common";
 
 /** After a successful sign-in the router notices the new session and moves on. */
-export function AuthScreen({ role, back }: { role: Role | null; back: () => void }) {
-  const [mode, setMode] = useState<"signup" | "signin">("signup");
+export function AuthScreen({
+  role,
+  back,
+  initialNotice = null,
+}: {
+  role: Role | null;
+  back: () => void;
+  initialNotice?: string | null;
+}) {
+  const [mode, setMode] = useState<"signup" | "signin">(initialNotice ? "signin" : "signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice);
+  const [canResend, setCanResend] = useState(!!initialNotice);
+  const [resending, setResending] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setNotice(null);
+    setCanResend(false);
     if (mode === "signup" && !name.trim()) return setError("Please enter your name");
     if (password.length < 6) return setError("Password must be at least 6 characters");
     setLoading(true);
@@ -24,7 +35,10 @@ export function AuthScreen({ role, back }: { role: Role | null; back: () => void
       if (mode === "signup") {
         const { needsConfirmation } = await signUp(email.trim(), password, name.trim());
         if (needsConfirmation) {
-          setNotice("Almost done! Open the email we sent you and tap the link to confirm, then sign in here.");
+          setNotice(
+            `Almost done! We sent a confirmation link to ${email.trim()}. Open it on this device, then sign in here. Check your spam folder if you don't see it.`,
+          );
+          setCanResend(true);
           setMode("signin");
           return;
         }
@@ -33,8 +47,23 @@ export function AuthScreen({ role, back }: { role: Role | null; back: () => void
       }
     } catch (err) {
       setError(readError(err));
+      if (err instanceof EmailNotConfirmedError) setCanResend(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resend = async () => {
+    if (!email.trim()) return setError("Enter your email above first");
+    setError(null);
+    setResending(true);
+    try {
+      await resendConfirmation(email.trim());
+      setNotice(`New confirmation link sent to ${email.trim()}. Only the newest link works.`);
+    } catch (err) {
+      setError(readError(err));
+    } finally {
+      setResending(false);
     }
   };
 
@@ -81,11 +110,18 @@ export function AuthScreen({ role, back }: { role: Role | null; back: () => void
         <ErrorNote message={error} />
         <PrimaryButton loading={loading}>{mode === "signup" ? "Sign Up" : "Sign In"}</PrimaryButton>
       </form>
+      {canResend && mode === "signin" && (
+        <button className="text-button" onClick={resend} disabled={resending}>
+          {resending ? "Sending…" : "Resend confirmation email"}
+        </button>
+      )}
       <button
         className="text-button"
         onClick={() => {
           setMode(mode === "signup" ? "signin" : "signup");
           setError(null);
+          setNotice(null);
+          setCanResend(false);
         }}
       >
         {mode === "signup" ? "Already have an account? Sign in" : "New here? Create an account"}

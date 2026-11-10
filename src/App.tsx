@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, Logo, PrimaryButton, StatusBar, type Role, type ScreenId } from "./ui";
 import { SessionProvider, useSession } from "./lib/session";
 import { updateProfile } from "./lib/api";
+import { authLinkError } from "./lib/supabase";
 import type { ScreenProps } from "./screens/common";
 import { AuthScreen } from "./screens/auth";
 import {
@@ -101,15 +102,18 @@ function Home({
   urdu,
   setUrdu,
   selectRole,
+  notice,
 }: {
   role: Role | null;
   urdu: boolean;
   setUrdu: (v: boolean) => void;
   selectRole: (role: Role) => void;
+  notice?: string | null;
 }) {
   const [langOpen, setLangOpen] = useState(false);
   return (
     <main className="home-screen">
+      {notice && <div className="notice-note">{notice}</div>}
       <div className="home-head">
         <Logo compact />
         <button className="language" onClick={() => setLangOpen(!langOpen)}>
@@ -244,6 +248,12 @@ function Router() {
   const [urdu, setUrdu] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
+  // Shown when the user opened a used/expired confirmation link; cleared once they're signed in.
+  const [authNotice, setAuthNotice] = useState<string | null>(authLinkError);
+
+  useEffect(() => {
+    if (session) setAuthNotice(null);
+  }, [session]);
 
   useEffect(() => {
     if (profile?.preferred_language === "ur") setUrdu(true);
@@ -331,12 +341,20 @@ function Router() {
       case "splash":
         return { node: <Splash go={navigate} />, className: "splash-screen" };
       case "home":
-        return { node: <Home role={role} urdu={urdu} setUrdu={setUrdu} selectRole={selectRole} /> };
-      case "auth":
         return {
           node: (
-            <AuthScreen role={pendingRole} back={goBack} />
+            <Home
+              role={role}
+              urdu={urdu}
+              setUrdu={setUrdu}
+              selectRole={selectRole}
+              notice={session ? null : authNotice}
+            />
           ),
+        };
+      case "auth":
+        return {
+          node: <AuthScreen role={pendingRole} back={goBack} initialNotice={authNotice} />,
         };
       case "customer-welcome":
         return { node: <CustomerWelcome go={navigate} />, className: "welcome-bg" };

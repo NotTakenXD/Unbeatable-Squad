@@ -78,13 +78,44 @@ export async function signUp(email: string, password: string, fullName: string) 
     password,
     options: { data: { full_name: fullName }, emailRedirectTo: window.location.origin },
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyAuthError(error.message));
+  // Supabase hides whether an email is taken: it "succeeds" but returns a user with no identities.
+  if (data.user && data.user.identities?.length === 0) {
+    throw new Error("An account with this email already exists. Please sign in instead.");
+  }
   return { needsConfirmation: !data.session };
 }
 
 export async function signIn(email: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "email_not_confirmed") throw new EmailNotConfirmedError();
+    throw new Error(friendlyAuthError(error.message));
+  }
+}
+
+export class EmailNotConfirmedError extends Error {
+  constructor() {
+    super("Please confirm your email first. Open the link we emailed you, or tap below to get a new one.");
+  }
+}
+
+export async function resendConfirmation(email: string) {
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  if (error) throw new Error(friendlyAuthError(error.message));
+}
+
+function friendlyAuthError(message: string) {
+  if (/invalid login credentials/i.test(message)) return "Wrong email or password.";
+  if (/rate limit|too many/i.test(message))
+    return "Too many emails sent. Please wait a few minutes and try again.";
+  if (/for security purposes/i.test(message))
+    return "Please wait a minute before asking for another email.";
+  return message;
 }
 
 export async function signOut() {
