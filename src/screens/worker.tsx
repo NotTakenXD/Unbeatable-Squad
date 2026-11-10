@@ -188,7 +188,7 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
   const draft = selection.voiceDraft;
   const heard = draft?.transcript ?? "";
   const ai = draft?.ai ?? null;
-  // Claude's reading of the speech when available, otherwise simple keyword rules.
+  // The AI's reading of the speech when available, otherwise simple keyword rules.
   const extracted = useMemo(() => {
     if (ai) {
       return {

@@ -443,7 +443,7 @@ export async function getPerson(id: string) {
   );
 }
 
-// ---------------------------------------------------------------- AI (Claude, via the ai-assist Edge Function)
+// ---------------------------------------------------------------- AI (Gemini, via the ai-assist Edge Function)
 export type AiWorkerProfile = {
   name: string | null;
   service: string | null;
@@ -468,7 +468,7 @@ export type AiJobRequest = {
 };
 
 /**
- * Asks Claude to understand what the user said. Returns null when the AI
+ * Asks Gemini to understand what the user said. Returns null when the AI
  * service isn't available (not deployed, no API key, rate limited, offline);
  * callers then fall back to simple keyword rules and say so in the UI.
  */

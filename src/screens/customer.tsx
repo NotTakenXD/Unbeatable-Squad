@@ -575,7 +575,7 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
     if (serviceId == null && services.length) setServiceId(services[0].id);
   }, [services, serviceId]);
 
-  // When a voice note finishes, let Claude fill in the form from what was said.
+  // When a voice note finishes, let the AI fill in the form from what was said.
   const [aiTitle, setAiTitle] = useState<string | null>(null);
   const [aiState, setAiState] = useState<"idle" | "working" | "done" | "unavailable">("idle");
   const understood = useRef("");
