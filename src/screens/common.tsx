@@ -48,7 +48,17 @@ export function VoiceNote({ path }: { path: string }) {
   return <audio className="voice-audio" controls src={url.data} preload="none" />;
 }
 
-export function WorkerItem({ worker, onOpen }: { worker: WorkerListItem; onOpen: () => void }) {
+export function WorkerItem({
+  worker,
+  onOpen,
+  engaged = false,
+  distanceKm = null,
+}: {
+  worker: WorkerListItem;
+  onOpen: () => void;
+  engaged?: boolean;
+  distanceKm?: number | null;
+}) {
   return (
     <WorkerCard
       name={worker.profile?.full_name || "Worker"}
@@ -58,6 +68,8 @@ export function WorkerItem({ worker, onOpen }: { worker: WorkerListItem; onOpen:
       ratingCount={worker.rating_count}
       price={worker.fixed_rate_from ?? worker.hourly_rate}
       available={worker.is_available}
+      engaged={engaged}
+      distanceKm={distanceKm}
       onClick={onOpen}
     />
   );

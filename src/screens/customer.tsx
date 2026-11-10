@@ -42,7 +42,22 @@ import {
   updateProfile,
   uploadFile,
 } from "../lib/api";
-import { formatClock, useLive, useQuery, useRecorder } from "../lib/hooks";
+import { formatClock, speak, useLive, useQuery, useRecorder } from "../lib/hooks";
+import { workerDistanceKm } from "../lib/nearby";
+import { aiAssist, listEngagedWorkerIds, type WorkerListItem } from "../lib/api";
+
+/** Turns the AI's "when" into a value for the date-time field. */
+function urgencyToTime(urgency: string): string | null {
+  const d = new Date();
+  if (urgency === "now") d.setMinutes(d.getMinutes() + 30);
+  else if (urgency === "today") d.setHours(Math.max(d.getHours() + 2, 10), 0, 0, 0);
+  else if (urgency === "tomorrow") {
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+  } else return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 import { useSession } from "../lib/session";
 import {
   ACTIVE_STATUSES,
@@ -246,6 +261,26 @@ export function SearchScreen({ go, back }: ScreenProps) {
   const [filter, setFilter] = useState("All");
   const workers = useQuery(() => listWorkers(serviceId), [serviceId]);
   const saved = useQuery(listSavedWorkerIds, []);
+  const engaged = useQuery(listEngagedWorkerIds, []);
+  useLive(["bookings"], engaged.reload);
+  const [myArea, setMyArea] = useState(() => {
+    try {
+      return localStorage.getItem("rr-my-area") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const rememberArea = (value: string) => {
+    setMyArea(value);
+    try {
+      localStorage.setItem("rr-my-area", value);
+    } catch {
+      /* private mode */
+    }
+  };
+  const engagedIds = new Set(engaged.data ?? []);
+  const distanceOf = (w: WorkerListItem) =>
+    myArea.trim() ? workerDistanceKm(myArea, [w.area, ...w.service_areas]) : null;
 
   const query = text.trim().toLowerCase();
   let list = (workers.data ?? []).filter((w) => {
@@ -261,9 +296,19 @@ export function SearchScreen({ go, back }: ScreenProps) {
       .toLowerCase();
     return haystack.includes(query);
   });
-  if (filter === "Available") list = list.filter((w) => w.is_available);
+  if (filter === "Available") list = list.filter((w) => w.is_available && !engagedIds.has(w.id));
   if (filter === "Top Rated") list = list.filter((w) => w.rating_count > 0);
   if (filter === "Saved") list = list.filter((w) => saved.data?.includes(w.id));
+  // Free workers first, then nearest, then best rated.
+  list = [...list].sort((a, b) => {
+    const freeA = a.is_available && !engagedIds.has(a.id) ? 0 : 1;
+    const freeB = b.is_available && !engagedIds.has(b.id) ? 0 : 1;
+    if (freeA !== freeB) return freeA - freeB;
+    const da = distanceOf(a) ?? 99;
+    const db = distanceOf(b) ?? 99;
+    if (da !== db) return da - db;
+    return Number(b.rating_avg) - Number(a.rating_avg);
+  });
 
   return (
     <main className="app-screen">
@@ -283,6 +328,15 @@ export function SearchScreen({ go, back }: ScreenProps) {
           )}
         </div>
       </div>
+      <label className="my-area">
+        <Icon name="pin" size={16} />
+        <span>Your area</span>
+        <input
+          value={myArea}
+          onChange={(e) => rememberArea(e.target.value)}
+          placeholder="e.g. G-11 — nearest first"
+        />
+      </label>
       <div className="chips">
         <button className={serviceId == null ? "active" : ""} onClick={() => select({ serviceId: null })}>
           All services
@@ -312,6 +366,8 @@ export function SearchScreen({ go, back }: ScreenProps) {
           <WorkerItem
             key={w.id}
             worker={w}
+            engaged={engagedIds.has(w.id)}
+            distanceKm={distanceOf(w)}
             onOpen={() => {
               select({ workerId: w.id });
               go("profile");
@@ -519,6 +575,34 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
     if (serviceId == null && services.length) setServiceId(services[0].id);
   }, [services, serviceId]);
 
+  // When a voice note finishes, let Claude fill in the form from what was said.
+  const [aiTitle, setAiTitle] = useState<string | null>(null);
+  const [aiState, setAiState] = useState<"idle" | "working" | "done" | "unavailable">("idle");
+  const understood = useRef("");
+  const fillFromSpeech = async (spoken: string) => {
+    if (!spoken.trim() || understood.current === spoken) return;
+    understood.current = spoken;
+    setAiState("working");
+    const ai = await aiAssist("job_request", spoken);
+    if (!ai) {
+      setAiState("unavailable");
+      return;
+    }
+    const service = services.find((s) => s.slug === ai.service);
+    if (service && !target) setServiceId(service.id);
+    if (ai.area) setArea(ai.area);
+    if (ai.budget) setBudget(String(ai.budget));
+    const soon = urgencyToTime(ai.urgency);
+    if (soon) setWhen(soon);
+    setAiTitle(ai.title);
+    if (ai.description && voiceMode) rec.setTranscript(ai.description);
+    setAiState("done");
+  };
+  useEffect(() => {
+    if (voiceMode && !rec.recording && rec.blob && rec.transcript) void fillFromSpeech(rec.transcript);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.recording, rec.blob]);
+
   const submit = async () => {
     setError(null);
     const description = (voiceMode ? rec.transcript : text).trim();
@@ -537,7 +621,7 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
         voicePath = await uploadFile("voice-notes", rec.blob, rec.blob.type.includes("mp4") ? "m4a" : "webm");
       }
       const serviceName = services.find((s) => s.id === serviceId)?.name ?? "Service";
-      const title = (description.split(/[.!?\n۔]/)[0] || `${serviceName} job (voice note)`).slice(0, 80);
+      const title = (aiTitle || description.split(/[.!?\n۔]/)[0] || `${serviceName} job (voice note)`).slice(0, 80);
       const jobId = await postJob({
         title,
         description: description || null,
@@ -605,9 +689,17 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
             placeholder="Describe the work you need..."
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onBlur={() => void fillFromSpeech(text)}
           />
-          <small>You can type in English or Urdu</small>
+          <small>You can type in English, Urdu or Roman Urdu</small>
         </div>
+      )}
+      {aiState === "working" && <div className="ai-status">AI is reading your request…</div>}
+      {aiState === "done" && (
+        <div className="ai-status done">AI filled in the details below. Check them before sending.</div>
+      )}
+      {aiState === "unavailable" && (
+        <div className="ai-status">AI is unavailable right now. Please fill in the details below.</div>
       )}
       <div className="form-grid">
         <label className="field">
@@ -789,6 +881,13 @@ export function ChatScreen({ back }: ScreenProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  // Speak instead of typing: speech is turned into the message text, which the
+  // sender can check before sending.
+  const [voiceLang, setVoiceLang] = useState<"ur" | "en">("ur");
+  const dictation = useRecorder(voiceLang);
+  useEffect(() => {
+    if (dictation.recording || dictation.transcript) setDraft(dictation.transcript);
+  }, [dictation.transcript, dictation.recording]);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -812,6 +911,7 @@ export function ChatScreen({ back }: ScreenProps) {
     try {
       await sendMessage(partner.id, body);
       setDraft("");
+      dictation.reset();
       messages.reload();
     } catch (err) {
       setError(readError(err));
@@ -840,15 +940,47 @@ export function ChatScreen({ back }: ScreenProps) {
             {m.body}
             <time>
               {new Date(m.created_at).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" })}
+              <button
+                type="button"
+                className="bubble-listen"
+                onClick={() => speak(m.body, /[؀-ۿ]/.test(m.body) ? "ur" : "en")}
+                aria-label="Read this message aloud"
+              >
+                <Icon name="speaker" size={14} />
+              </button>
             </time>
           </div>
         ))}
         <div ref={end} />
       </div>
-      <ErrorNote message={error} />
+      <ErrorNote message={error ?? dictation.error} />
+      {dictation.recording && (
+        <div className="dictation-hint">Listening… speak your message, then tap the mic again.</div>
+      )}
       <form className="chat-input" onSubmit={submit}>
-        <input placeholder="Type a message..." value={draft} onChange={(e) => setDraft(e.target.value)} />
-        <button disabled={sending} aria-label="Send">
+        <button
+          type="button"
+          className="chat-lang"
+          onClick={() => setVoiceLang(voiceLang === "ur" ? "en" : "ur")}
+          disabled={dictation.recording}
+          aria-label="Change speaking language"
+        >
+          {voiceLang === "ur" ? <span lang="ur">اردو</span> : "EN"}
+        </button>
+        <input
+          placeholder={dictation.recording ? "Listening…" : "Type or tap the mic…"}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button
+          type="button"
+          className={`chat-mic ${dictation.recording ? "recording" : ""}`}
+          onClick={() => (dictation.recording ? dictation.stop() : dictation.start())}
+          aria-label={dictation.recording ? "Stop speaking" : "Speak a message"}
+        >
+          <Icon name="mic" size={19} />
+        </button>
+        <button disabled={sending || dictation.recording} aria-label="Send">
           <Icon name="send" size={19} />
         </button>
       </form>

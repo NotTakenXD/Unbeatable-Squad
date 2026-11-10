@@ -11,7 +11,7 @@ export type Selection = {
   serviceId?: number | null;
   chatWith?: { id: string; name: string; avatar: string | null };
   requestWorker?: { id: string; name: string; serviceId: number } | null;
-  voiceDraft?: { transcript: string; blob: Blob | null };
+  voiceDraft?: { transcript: string; blob: Blob | null; ai?: import("./api").AiWorkerProfile | null };
 };
 
 type SessionValue = {

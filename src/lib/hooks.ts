@@ -61,7 +61,8 @@ type SpeechRecognitionLike = {
   continuous: boolean;
   interimResults: boolean;
   onresult: ((event: SpeechResultEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
   start: () => void;
   stop: () => void;
 };
@@ -86,8 +87,10 @@ export function useRecorder(lang: "en" | "ur") {
   const recognizer = useRef<SpeechRecognitionLike | null>(null);
   const timer = useRef<number | null>(null);
   const finalText = useRef("");
+  const listening = useRef(false);
 
   const cleanup = () => {
+    listening.current = false;
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
     recorder.current?.stream.getTracks().forEach((t) => t.stop());
@@ -129,11 +132,32 @@ export function useRecorder(lang: "en" | "ur") {
           }
           setTranscript((finalText.current + interim).trim());
         };
-        sr.onerror = () => undefined;
+        sr.onerror = (event) => {
+          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            listening.current = false;
+            setError("Speech-to-text was blocked. Your voice is still recorded; you can edit the text after.");
+          } else if (event.error === "language-not-supported") {
+            listening.current = false;
+            setError("This browser can't recognise this language. Try switching to English, or Chrome.");
+          } else if (event.error === "network") {
+            setError("Speech-to-text needs internet. Your voice is still recorded.");
+          }
+        };
+        // Chrome stops listening after a pause or ~60 s; keep going until the user taps stop.
+        sr.onend = () => {
+          if (!listening.current) return;
+          try {
+            sr.start();
+          } catch {
+            /* already restarting */
+          }
+        };
         try {
+          listening.current = true;
           sr.start();
           recognizer.current = sr;
         } catch {
+          listening.current = false;
           recognizer.current = null;
         }
       }
@@ -184,4 +208,35 @@ export function useLocalList(key: string) {
       return next;
     });
   return { items, add };
+}
+
+/**
+ * Reads text aloud with the browser's speech synthesis (for users who don't
+ * read comfortably). Uses an Urdu voice when the device has one.
+ */
+export function speak(text: string, lang: "ur" | "en" = "ur") {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth || !text.trim()) return false;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = synth.getVoices();
+    const wanted = lang === "ur" ? ["ur-PK", "ur-IN", "ur", "hi-IN"] : ["en-PK", "en-IN", "en-GB", "en-US"];
+    const voice = wanted
+      .map((code) => voices.find((v) => v.lang.toLowerCase().startsWith(code.toLowerCase())))
+      .find(Boolean);
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang ?? (lang === "ur" ? "ur-PK" : "en-US");
+    utterance.rate = 0.95;
+    synth.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when this browser can turn speech into text (Chrome, Edge, Android, Safari 14.5+). */
+export function canRecognizeSpeech() {
+  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+  return !!(w.SpeechRecognition ?? w.webkitSpeechRecognition);
 }

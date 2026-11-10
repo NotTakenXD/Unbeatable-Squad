@@ -36,8 +36,17 @@ import {
   type BookingStatus,
   type JobListItem,
 } from "../lib/api";
+import { aiAssist } from "../lib/api";
 import { extractProfile } from "../lib/extract";
-import { formatClock, useLive, useLocalList, useQuery, useRecorder } from "../lib/hooks";
+import {
+  canRecognizeSpeech,
+  formatClock,
+  speak,
+  useLive,
+  useLocalList,
+  useQuery,
+  useRecorder,
+} from "../lib/hooks";
 import { useSession } from "../lib/session";
 import {
   ACTIVE_STATUSES,
@@ -75,10 +84,18 @@ function relevantJobs(jobs: JobListItem[], serviceId: number, workerId: string) 
 // ------------------------------------------------------------------ voice registration
 export function VoiceRegister({ go, back, urdu }: ScreenProps) {
   const { select } = useSession();
-  const rec = useRecorder(urdu ? "ur" : "en");
+  // Most workers speak Urdu / Roman Urdu, so Urdu recognition is the default.
+  const [lang, setLang] = useState<"ur" | "en">("ur");
+  const rec = useRecorder(lang);
+  const [thinking, setThinking] = useState(false);
+  const speechOk = canRecognizeSpeech();
 
-  const next = () => {
-    select({ voiceDraft: { transcript: rec.transcript, blob: rec.blob } });
+  const next = async () => {
+    setThinking(true);
+    const ai = await aiAssist("worker_profile", rec.transcript);
+    setThinking(false);
+    if (ai?.summary_ur) speak(ai.summary_ur, "ur");
+    select({ voiceDraft: { transcript: rec.transcript, blob: rec.blob, ai } });
     go("ai-extraction");
   };
 
@@ -94,6 +111,29 @@ export function VoiceRegister({ go, back, urdu }: ScreenProps) {
       <p lang="ur" dir="rtl">
         اپنے بارے میں بتائیں
       </p>
+      <div className="lang-toggle" role="group" aria-label="Speaking language">
+        <button className={lang === "ur" ? "active" : ""} onClick={() => setLang("ur")} disabled={rec.recording}>
+          <span lang="ur">اردو</span>
+        </button>
+        <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} disabled={rec.recording}>
+          English
+        </button>
+        <button
+          className="listen-button"
+          onClick={() =>
+            speak(
+              "مائیک کا بٹن دبائیں اور بولیں: آپ کا نام، آپ کا کام، کتنے سال کا تجربہ، اور آپ کس علاقے میں کام کرتے ہیں۔",
+              "ur",
+            )
+          }
+          aria-label="Listen to instructions"
+        >
+          <Icon name="speaker" size={18} />
+        </button>
+      </div>
+      {!speechOk && (
+        <ErrorNote message="This browser can record your voice but can't turn it into text. Use Chrome or Edge for automatic filling." />
+      )}
       <button
         className={`mic-button ${rec.recording ? "recording" : ""}`}
         onClick={() => (rec.recording ? rec.stop() : rec.start())}
@@ -117,7 +157,9 @@ export function VoiceRegister({ go, back, urdu }: ScreenProps) {
       {rec.recording ? (
         <PrimaryButton onClick={rec.stop}>Stop Recording</PrimaryButton>
       ) : rec.blob ? (
-        <PrimaryButton onClick={next}>Continue</PrimaryButton>
+        <PrimaryButton onClick={next} loading={thinking}>
+          {thinking ? "Understanding what you said…" : "Continue"}
+        </PrimaryButton>
       ) : (
         <PrimaryButton onClick={rec.start}>Start Recording</PrimaryButton>
       )}
@@ -145,7 +187,26 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
   const { worker, profile, services, refreshAccount, selection, select } = useSession();
   const draft = selection.voiceDraft;
   const heard = draft?.transcript ?? "";
-  const extracted = useMemo(() => extractProfile(heard, services), [heard, services]);
+  const ai = draft?.ai ?? null;
+  // Claude's reading of the speech when available, otherwise simple keyword rules.
+  const extracted = useMemo(() => {
+    if (ai) {
+      return {
+        name: ai.name ?? undefined,
+        serviceId: services.find((s) => s.slug === ai.service)?.id,
+        years: ai.years_experience ?? undefined,
+        area: ai.area ?? undefined,
+        skills: ai.skills,
+        serviceAreas: ai.service_areas,
+        hourly: ai.hourly_rate,
+        fixed: ai.fixed_rate_from,
+        bio: ai.bio,
+      };
+    }
+    const rules = extractProfile(heard, services);
+    return { ...rules, serviceAreas: rules.area ? [rules.area] : [], hourly: null, fixed: null, bio: heard };
+  }, [ai, heard, services]);
+  const source: "ai" | "rules" | "none" = ai ? "ai" : heard ? "rules" : "none";
 
   const [name, setName] = useState(extracted.name ?? profile?.full_name ?? "");
   const [serviceId, setServiceId] = useState<number | null>(
@@ -157,11 +218,25 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
     (extracted.skills.length ? extracted.skills : (worker?.skills ?? [])).join(", "),
   );
   const [areas, setAreas] = useState(
-    (worker?.service_areas.length ? worker.service_areas : extracted.area ? [extracted.area] : []).join(", "),
+    (extracted.serviceAreas.length ? extracted.serviceAreas : (worker?.service_areas ?? [])).join(", "),
   );
-  const [hourly, setHourly] = useState(String(worker?.hourly_rate ?? ""));
-  const [fixed, setFixed] = useState(String(worker?.fixed_rate_from ?? ""));
-  const [bio, setBio] = useState(heard || worker?.bio || "");
+  const [hourly, setHourly] = useState(String(extracted.hourly ?? worker?.hourly_rate ?? ""));
+  const [fixed, setFixed] = useState(String(extracted.fixed ?? worker?.fixed_rate_from ?? ""));
+  const [bio, setBio] = useState(extracted.bio || worker?.bio || "");
+
+  // Read the details back in Urdu so a worker who can't read can still confirm them.
+  const readBack = () => {
+    const trade = services.find((s) => s.id === serviceId);
+    const parts = [
+      name && `آپ کا نام ${name} ہے۔`,
+      trade && `آپ ${trade.name_ur ?? trade.name} ہیں۔`,
+      years && `آپ کا تجربہ ${years} سال ہے۔`,
+      area && `آپ کا علاقہ ${area} ہے۔`,
+      hourly && `آپ کا ریٹ ${hourly} روپے فی گھنٹہ ہے۔`,
+      "اگر یہ ٹھیک ہے تو نیچے والا سبز بٹن دبائیں۔",
+    ];
+    speak(parts.filter(Boolean).join(" "), "ur");
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -214,11 +289,25 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
 
   return (
     <main className="app-screen extraction">
-      <TopBar title={heard ? "AI Extracted Information" : "Your Work Profile"} back={back} />
-      {heard ? (
+      <TopBar
+        title={source === "ai" ? "AI Understood" : heard ? "Check Your Details" : "Your Work Profile"}
+        back={back}
+      />
+      {source === "ai" ? (
         <div className="ai-note">
           <span>AI</span>
-          <p>We filled these in from what you said. Check and edit anything before saving.</p>
+          <p>Claude understood these from what you said. Tap the speaker to hear them, then confirm.</p>
+          <button className="listen-button" onClick={readBack} aria-label="Read my details aloud">
+            <Icon name="speaker" size={18} />
+          </button>
+        </div>
+      ) : source === "rules" ? (
+        <div className="ai-note">
+          <span>✎</span>
+          <p>Filled in by simple word matching (AI was unavailable). Please check every field.</p>
+          <button className="listen-button" onClick={readBack} aria-label="Read my details aloud">
+            <Icon name="speaker" size={18} />
+          </button>
         </div>
       ) : (
         <div className="ai-note">
@@ -526,6 +615,23 @@ export function FindWork({ go, back, flash }: ScreenProps) {
                 <span className="urgency">
                   {job.requested_worker_id === userId ? "For you" : job.preferred_time ? formatWhen(job.preferred_time).split(",")[0] : "Flexible"}
                 </span>
+                <button
+                  className="listen-button"
+                  onClick={() =>
+                    speak(
+                      [
+                        `${job.service?.name ?? ""} کا کام۔`,
+                        job.description ?? job.title,
+                        job.area ? `علاقہ ${job.area}۔` : "",
+                        job.budget ? `بجٹ ${job.budget} روپے۔` : "بجٹ کھلا ہے۔",
+                      ].join(" "),
+                      "ur",
+                    )
+                  }
+                  aria-label="Read this job aloud"
+                >
+                  <Icon name="speaker" size={18} />
+                </button>
               </div>
               {job.description && job.description !== job.title && (
                 <p className="muted-line">{job.description}</p>
@@ -702,9 +808,31 @@ export function ApplyScreen({ go, back, flash }: ScreenProps) {
             Your Price
             <div className="price-input">
               <span>Rs.</span>
-              <input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} autoFocus />
+              <input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
           </label>
+          {/* Set the price by tapping — no typing needed. */}
+          <div className="price-steps">
+            <button type="button" onClick={() => setPrice(String(Math.max(0, (Number(price) || 0) - 500)))}>
+              − 500
+            </button>
+            {[1000, 1500, 2000, 3000].map((n) => (
+              <button type="button" key={n} className={Number(price) === n ? "active" : ""} onClick={() => setPrice(String(n))}>
+                {n.toLocaleString("en-PK")}
+              </button>
+            ))}
+            <button type="button" onClick={() => setPrice(String((Number(price) || 0) + 500))}>
+              + 500
+            </button>
+            <button
+              type="button"
+              className="listen-button"
+              onClick={() => speak(`آپ کی قیمت ${Number(price) || 0} روپے ہے۔`, "ur")}
+              aria-label="Hear your price"
+            >
+              <Icon name="speaker" size={16} />
+            </button>
+          </div>
           <label>
             Message <small>(optional)</small>
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} />

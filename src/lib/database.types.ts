@@ -552,6 +552,7 @@ export type Database = {
     };
     Functions: {
       accept_offer: { Args: { p_offer_id: string }; Returns: string };
+      engaged_worker_ids: { Args: Record<string, never>; Returns: string[] };
       decline_offer: { Args: { p_offer_id: string }; Returns: undefined };
       update_booking_status: {
         Args: {

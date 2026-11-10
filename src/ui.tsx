@@ -52,7 +52,8 @@ export type IconName =
   | "message"
   | "filter"
   | "swap"
-  | "wallet";
+  | "wallet"
+  | "speaker";
 
 export function Icon({
   name,
@@ -174,6 +175,12 @@ export function Icon({
       <>
         <path d="M4 6h15a2 2 0 0 1 2 2v11H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h13" />
         <path d="M15 11h6v5h-6a2.5 2.5 0 0 1 0-5Z" />
+      </>
+    ),
+    speaker: (
+      <>
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+        <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
       </>
     ),
   };
@@ -467,6 +474,8 @@ export function WorkerCard({
   ratingCount,
   price,
   available,
+  engaged = false,
+  distanceKm = null,
   onClick,
 }: {
   name: string;
@@ -476,20 +485,29 @@ export function WorkerCard({
   ratingCount: number;
   price?: number | null;
   available: boolean;
+  /** Has a booking right now (from the database), regardless of the toggle. */
+  engaged?: boolean;
+  distanceKm?: number | null;
   onClick: () => void;
 }) {
+  const free = available && !engaged;
   return (
     <article className="worker-card tappable" onClick={onClick}>
       <Avatar src={avatar} name={name} />
       <div className="grow">
         <div className="row">
           <strong>{name}</strong>
-          <span className={`badge ${available ? "" : "badge-off"}`}>
+          <span className={`badge ${free ? "" : "badge-off"}`}>
             <i />
-            {available ? "Available" : "Busy"}
+            {engaged ? "On a job" : available ? "Available" : "Busy"}
           </span>
         </div>
-        <small>{service ?? "Skilled worker"}</small>
+        <small>
+          {service ?? "Skilled worker"}
+          {distanceKm != null && (
+            <span className="distance"> · {distanceKm === 0 ? "Your area" : `~${distanceKm} km away`}</span>
+          )}
+        </small>
         <div className="rating">
           {ratingCount > 0 ? `★ ${rating.toFixed(1)} (${ratingCount})` : "New on Roshan Rozgar"}
         </div>

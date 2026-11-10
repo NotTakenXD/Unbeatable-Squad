@@ -442,3 +442,95 @@ export async function getPerson(id: string) {
     await supabase.from("profiles").select("id, full_name, avatar_url").eq("id", id).maybeSingle(),
   );
 }
+
+// ---------------------------------------------------------------- AI (Claude, via the ai-assist Edge Function)
+export type AiWorkerProfile = {
+  name: string | null;
+  service: string | null;
+  years_experience: number | null;
+  area: string | null;
+  service_areas: string[];
+  skills: string[];
+  hourly_rate: number | null;
+  fixed_rate_from: number | null;
+  bio: string;
+  summary_ur: string;
+};
+
+export type AiJobRequest = {
+  title: string;
+  description: string;
+  service: string | null;
+  area: string | null;
+  budget: number | null;
+  urgency: "now" | "today" | "tomorrow" | "this_week" | "flexible";
+  summary_ur: string;
+};
+
+/**
+ * Asks Claude to understand what the user said. Returns null when the AI
+ * service isn't available (not deployed, no API key, rate limited, offline);
+ * callers then fall back to simple keyword rules and say so in the UI.
+ */
+export async function aiAssist(task: "worker_profile", text: string): Promise<AiWorkerProfile | null>;
+export async function aiAssist(task: "job_request", text: string): Promise<AiJobRequest | null>;
+export async function aiAssist(task: string, text: string): Promise<unknown> {
+  if (!text.trim()) return null;
+  try {
+    const { data, error } = await supabase.functions.invoke("ai-assist", { body: { task, text } });
+    if (error || !data?.result) return null;
+    return data.result;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------- one-tap worker account
+const DEVICE_ACCOUNT_KEY = "rr-device-worker";
+
+/** True when this device has a one-tap worker account it can sign back into. */
+export function hasDeviceAccount() {
+  try {
+    return !!localStorage.getItem(DEVICE_ACCOUNT_KEY);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Signs a worker in without email or password. Reuses this device's account if
+ * there is one, otherwise asks the quick-start Edge Function to create one.
+ */
+export async function quickStartWorker() {
+  let creds: { email: string; password: string } | null = null;
+  try {
+    const saved = localStorage.getItem(DEVICE_ACCOUNT_KEY);
+    if (saved) creds = JSON.parse(saved);
+  } catch {
+    creds = null;
+  }
+  if (creds) {
+    const { error } = await supabase.auth.signInWithPassword(creds);
+    if (!error) return;
+  }
+  const { data, error } = await supabase.functions.invoke("quick-start", { body: {} });
+  if (error || !data?.email) {
+    throw new Error("Quick start isn't available right now. Please use email sign-up below.");
+  }
+  creds = { email: data.email, password: data.password };
+  const signIn = await supabase.auth.signInWithPassword(creds);
+  if (signIn.error) throw new Error(signIn.error.message);
+  try {
+    localStorage.setItem(DEVICE_ACCOUNT_KEY, JSON.stringify(creds));
+  } catch {
+    // Private browsing: the session still works until sign-out.
+  }
+}
+
+// ---------------------------------------------------------------- availability
+/** Workers who are on a job right now (or booked within the next/last 3 hours). */
+export async function listEngagedWorkerIds(): Promise<string[]> {
+  const { data, error } = await supabase.rpc("engaged_worker_ids");
+  if (error) return []; // older database without the function: fall back to manual availability
+  return (data as unknown as string[]) ?? [];
+}

@@ -1,6 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { ErrorNote, Logo, PrimaryButton, TopBar, type Role } from "../ui";
-import { EmailNotConfirmedError, resendConfirmation, signIn, signUp } from "../lib/api";
+import { ErrorNote, Icon, Logo, PrimaryButton, TopBar, type Role } from "../ui";
+import {
+  EmailNotConfirmedError,
+  hasDeviceAccount,
+  quickStartWorker,
+  resendConfirmation,
+  signIn,
+  signUp,
+} from "../lib/api";
+import { speak } from "../lib/hooks";
 import { readError } from "./common";
 
 /** After a successful sign-in the router notices the new session and moves on. */
@@ -53,6 +61,19 @@ export function AuthScreen({
     }
   };
 
+  const [quickLoading, setQuickLoading] = useState(false);
+  const startWorker = async () => {
+    setError(null);
+    setQuickLoading(true);
+    try {
+      await quickStartWorker();
+    } catch (err) {
+      setError(readError(err));
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
   const resend = async () => {
     if (!email.trim()) return setError("Enter your email above first");
     setError(null);
@@ -79,6 +100,28 @@ export function AuthScreen({
           ? "Sign up to get job requests from customers near you."
           : "Sign up to book trusted workers near you."}
       </p>
+      {role === "worker" && (
+        <section className="quick-start">
+          <PrimaryButton loading={quickLoading} onClick={startWorker}>
+            {hasDeviceAccount() ? "Continue on this phone" : "Start now — no email needed"}
+          </PrimaryButton>
+          <div className="quick-start-ur">
+            <span lang="ur" dir="rtl">
+              بغیر ای میل کے شروع کریں
+            </span>
+            <button
+              className="listen-button"
+              onClick={() =>
+                speak("کام تلاش کرنے کے لیے یہ سبز بٹن دبائیں۔ کوئی ای میل یا پاس ورڈ نہیں چاہیے۔", "ur")
+              }
+              aria-label="Listen"
+            >
+              <Icon name="speaker" size={18} />
+            </button>
+          </div>
+          <small className="muted-line">Or use email below if you want to sign in on other phones.</small>
+        </section>
+      )}
       <form className="form-grid single" onSubmit={submit}>
         {mode === "signup" && (
           <label className="field">
