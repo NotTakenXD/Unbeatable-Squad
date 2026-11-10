@@ -39,6 +39,8 @@ import {
 import { aiAssist } from "../lib/api";
 import { extractProfile } from "../lib/extract";
 import {
+  audioExtension,
+  textDir,
   canRecognizeSpeech,
   formatClock,
   speak,
@@ -86,18 +88,33 @@ export function VoiceRegister({ go, back, urdu }: ScreenProps) {
   const { select } = useSession();
   // Most workers speak Urdu / Roman Urdu, so Urdu recognition is the default.
   const [lang, setLang] = useState<"ur" | "en">("ur");
-  const rec = useRecorder(lang);
+  const rec = useRecorder(lang, { maxSeconds: 90 });
   const [thinking, setThinking] = useState(false);
   const speechOk = canRecognizeSpeech();
+  const done = !rec.recording && !rec.settling && rec.hasResult;
 
   const next = async () => {
+    if (rec.recording || rec.settling) return; // wait for the last words
+    const said = rec.transcript.trim();
     setThinking(true);
-    const ai = await aiAssist("worker_profile", rec.transcript);
+    const ai = said ? await aiAssist("worker_profile", said) : null;
     setThinking(false);
     if (ai?.summary_ur) speak(ai.summary_ur, "ur");
-    select({ voiceDraft: { transcript: rec.transcript, blob: rec.blob, ai } });
+    select({ voiceDraft: { transcript: said, blob: rec.blob, ai } });
     go("ai-extraction");
   };
+
+  const status = rec.recording
+    ? rec.hearing || rec.level > 0.08
+      ? `Listening… ${formatClock(rec.seconds)}`
+      : `Speak now… ${formatClock(rec.seconds)}`
+    : rec.settling
+      ? "Finishing…"
+      : done
+        ? rec.transcript
+          ? "Done — check the text below"
+          : "Voice recorded (no text — you can type it below)"
+        : "Tap the mic to begin";
 
   return (
     <main className="app-screen voice-register">
@@ -137,29 +154,47 @@ export function VoiceRegister({ go, back, urdu }: ScreenProps) {
       <button
         className={`mic-button ${rec.recording ? "recording" : ""}`}
         onClick={() => (rec.recording ? rec.stop() : rec.start())}
+        disabled={rec.settling || thinking}
         aria-label={rec.recording ? "Stop recording" : "Start recording"}
       >
         {rec.recording ? "■" : <Icon name="mic" size={48} />}
       </button>
-      <strong>
-        {rec.recording
-          ? `Listening... ${formatClock(rec.seconds)}`
-          : rec.blob
-            ? "Recording ready"
-            : "Tap the mic to begin"}
+      <strong className={`voice-status ${rec.recording && (rec.hearing || rec.level > 0.08) ? "hearing" : ""}`}>
+        {status}
       </strong>
-      <Waveform active={rec.recording} />
-      <div className="hint">
-        {rec.transcript ||
-          "Say your name, your trade, years of experience and your area. e.g. “My name is Ali Khan, I am an electrician with 5 years experience in G-11.”"}
-      </div>
+      <Waveform active={rec.recording} level={rec.keepsAudio ? rec.level : undefined} hearing={rec.hearing} />
+      {done ? (
+        // Let the worker (or a helper) fix recognition mistakes before the AI reads it.
+        <textarea
+          className="transcript-edit"
+          dir={rec.transcript ? textDir(rec.transcript) : lang === "ur" ? "rtl" : "ltr"}
+          value={rec.transcript}
+          onChange={(e) => rec.setTranscript(e.target.value)}
+          placeholder={lang === "ur" ? "یہاں لکھیں (اختیاری)" : "Type here (optional)"}
+        />
+      ) : (
+        <div className="hint" dir={textDir(rec.transcript || (lang === "ur" ? "ا" : ""))}>
+          {rec.transcript ||
+            (lang === "ur"
+              ? "اپنا نام، کام، تجربہ اور علاقہ بتائیں۔ مثال: میرا نام علی خان ہے، میں الیکٹریشن ہوں، پانچ سال کا تجربہ ہے، جی گیارہ میں۔"
+              : "Say your name, your trade, years of experience and your area. e.g. “My name is Ali Khan, I am an electrician with 5 years experience in G-11.”")}
+        </div>
+      )}
+      {rec.recording && rec.seconds >= rec.maxSeconds - 15 && (
+        <small className="voice-status">Stopping automatically in {rec.maxSeconds - rec.seconds}s</small>
+      )}
       <ErrorNote message={rec.error} />
       {rec.recording ? (
         <PrimaryButton onClick={rec.stop}>Stop Recording</PrimaryButton>
-      ) : rec.blob ? (
-        <PrimaryButton onClick={next} loading={thinking}>
-          {thinking ? "Understanding what you said…" : "Continue"}
-        </PrimaryButton>
+      ) : done || rec.settling ? (
+        <div className="record-actions">
+          <PrimaryButton outline onClick={() => { rec.reset(); void rec.start(); }} disabled={rec.settling || thinking}>
+            Record again
+          </PrimaryButton>
+          <PrimaryButton onClick={next} loading={thinking || rec.settling}>
+            {thinking ? "Understanding…" : "Continue"}
+          </PrimaryButton>
+        </div>
       ) : (
         <PrimaryButton onClick={rec.start}>Start Recording</PrimaryButton>
       )}
@@ -257,7 +292,7 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
         voicePath = await uploadFile(
           "voice-notes",
           draft.blob,
-          draft.blob.type.includes("mp4") ? "m4a" : "webm",
+          audioExtension(draft.blob),
         );
       }
       await updateProfile({ full_name: name.trim(), last_role: "worker" });

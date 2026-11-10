@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon, Logo, PrimaryButton, StatusBar, type Role, type ScreenId } from "./ui";
+import { Icon, Logo, PrimaryButton, type Role, type ScreenId } from "./ui";
 import { SessionProvider, useSession } from "./lib/session";
 import { updateProfile } from "./lib/api";
 import { authLinkError } from "./lib/supabase";
@@ -53,17 +53,20 @@ function Shell({
   children: ReactNode;
 }) {
   return (
-    <div className={`screen ${className} ${urdu ? "urdu-mode" : ""}`} dir={urdu ? "rtl" : "ltr"}>
-      <StatusBar />
+    <div
+      className={`screen ${className} ${urdu ? "urdu-mode" : ""} ${showRoleSwitch ? "with-role-strip" : ""}`}
+      dir={urdu ? "rtl" : "ltr"}
+    >
       {toast && <div className="toast">{toast}</div>}
       {showRoleSwitch && (
-        <button className="global-role-switch" onClick={onRoleSwitch}>
-          <Icon name="swap" size={15} />
-          Switch Role
-        </button>
+        <div className="role-strip">
+          <button className="global-role-switch" onClick={onRoleSwitch}>
+            <Icon name="swap" size={15} />
+            Switch Role
+          </button>
+        </div>
       )}
       {children}
-      <div className="home-indicator" />
     </div>
   );
 }

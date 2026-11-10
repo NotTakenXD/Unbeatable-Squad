@@ -42,7 +42,7 @@ import {
   updateProfile,
   uploadFile,
 } from "../lib/api";
-import { formatClock, speak, useLive, useQuery, useRecorder } from "../lib/hooks";
+import { audioExtension, formatClock, speak, textDir, useLive, useQuery, useRecorder } from "../lib/hooks";
 import { workerDistanceKm } from "../lib/nearby";
 import { aiAssist, listEngagedWorkerIds, type WorkerListItem } from "../lib/api";
 
@@ -560,7 +560,9 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
   const { selection, services, select } = useSession();
   const target = selection.requestWorker ?? null;
   const [voiceMode, setVoiceMode] = useState(true);
-  const rec = useRecorder(urdu ? "ur" : "en");
+  // Customers in Pakistan often speak Urdu even with the app in English, so let them choose.
+  const [lang, setLang] = useState<"ur" | "en">(urdu ? "ur" : "en");
+  const rec = useRecorder(lang, { maxSeconds: 120 });
   const [text, setText] = useState("");
   const [serviceId, setServiceId] = useState<number | null>(
     target?.serviceId ?? selection.serviceId ?? null,
@@ -577,13 +579,25 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
 
   // When a voice note finishes, let the AI fill in the form from what was said.
   const [aiTitle, setAiTitle] = useState<string | null>(null);
+  const [aiDescription, setAiDescription] = useState<string | null>(null);
   const [aiState, setAiState] = useState<"idle" | "working" | "done" | "unavailable">("idle");
   const understood = useRef("");
+  const request = useRef(0);
+  const clearAi = () => {
+    request.current++; // ignore any answer still on its way
+    understood.current = "";
+    setAiTitle(null);
+    setAiDescription(null);
+    setAiState("idle");
+  };
   const fillFromSpeech = async (spoken: string) => {
-    if (!spoken.trim() || understood.current === spoken) return;
-    understood.current = spoken;
+    const said = spoken.trim();
+    if (!said || understood.current === said) return;
+    understood.current = said;
+    const mine = ++request.current;
     setAiState("working");
-    const ai = await aiAssist("job_request", spoken);
+    const ai = await aiAssist("job_request", said);
+    if (mine !== request.current) return; // a newer recording replaced this one
     if (!ai) {
       setAiState("unavailable");
       return;
@@ -595,18 +609,28 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
     const soon = urgencyToTime(ai.urgency);
     if (soon) setWhen(soon);
     setAiTitle(ai.title);
-    if (ai.description && voiceMode) rec.setTranscript(ai.description);
+    setAiDescription(ai.description || null);
     setAiState("done");
   };
+  // Run the AI once the recording has fully finished (including the last words).
   useEffect(() => {
-    if (voiceMode && !rec.recording && rec.blob && rec.transcript) void fillFromSpeech(rec.transcript);
+    if (voiceMode && !rec.recording && !rec.settling && rec.transcript.trim()) void fillFromSpeech(rec.transcript);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rec.recording, rec.blob]);
+  }, [rec.recording, rec.settling]);
+
+  const startRecording = () => {
+    clearAi();
+    void rec.start();
+  };
 
   const submit = async () => {
     setError(null);
-    const description = (voiceMode ? rec.transcript : text).trim();
-    if (!description && !(voiceMode && rec.blob)) {
+    if (rec.recording || rec.settling) return setError("Stop the recording first");
+    if (aiState === "working") return setError("Wait a moment, the AI is still reading your request");
+    const spoken = (voiceMode ? rec.transcript : text).trim();
+    // Keep the customer's own words; add the AI's clear English version when we have it.
+    const description = aiDescription && aiDescription !== spoken ? `${aiDescription}\n\n“${spoken}”` : spoken;
+    if (!spoken && !(voiceMode && rec.blob)) {
       setError(voiceMode ? "Record a voice note first" : "Describe the work you need");
       return;
     }
@@ -618,10 +642,10 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
     try {
       let voicePath: string | null = null;
       if (voiceMode && rec.blob) {
-        voicePath = await uploadFile("voice-notes", rec.blob, rec.blob.type.includes("mp4") ? "m4a" : "webm");
+        voicePath = await uploadFile("voice-notes", rec.blob, audioExtension(rec.blob));
       }
       const serviceName = services.find((s) => s.id === serviceId)?.name ?? "Service";
-      const title = (aiTitle || description.split(/[.!?\n۔]/)[0] || `${serviceName} job (voice note)`).slice(0, 80);
+      const title = (aiTitle || spoken.split(/[.!?\n۔]/)[0] || `${serviceName} job (voice note)`).slice(0, 80);
       const jobId = await postJob({
         title,
         description: description || null,
@@ -661,25 +685,57 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
       </div>
       {voiceMode ? (
         <div className="voice-panel">
+          <div className="lang-toggle" role="group" aria-label="Speaking language">
+            <button className={lang === "ur" ? "active" : ""} onClick={() => setLang("ur")} disabled={rec.recording}>
+              <span lang="ur">اردو</span>
+            </button>
+            <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} disabled={rec.recording}>
+              English
+            </button>
+          </div>
           <button
             className={`mic-button ${rec.recording ? "recording" : ""}`}
-            onClick={() => (rec.recording ? rec.stop() : rec.start())}
+            onClick={() => (rec.recording ? rec.stop() : startRecording())}
+            disabled={rec.settling}
             aria-label={rec.recording ? "Stop recording" : "Start recording"}
           >
             {rec.recording ? "■" : <Icon name="mic" size={45} />}
           </button>
-          <strong>{rec.recording ? "Listening..." : rec.blob ? "Recording ready" : "Tap to record"}</strong>
+          <strong className={`voice-status ${rec.recording && (rec.hearing || rec.level > 0.08) ? "hearing" : ""}`}>
+            {rec.recording
+              ? rec.hearing || rec.level > 0.08
+                ? "Listening…"
+                : "Speak now…"
+              : rec.settling
+                ? "Finishing…"
+                : rec.hasResult
+                  ? "Recording ready"
+                  : "Tap to record"}
+          </strong>
           <small>{formatClock(rec.seconds)}</small>
-          <Waveform active={rec.recording} />
-          {rec.blob && !rec.recording ? (
-            <textarea
-              className="hint editable-hint"
-              value={rec.transcript}
-              onChange={(e) => rec.setTranscript(e.target.value)}
-              placeholder="Add a short written description (optional)"
-            />
+          <Waveform active={rec.recording} level={rec.keepsAudio ? rec.level : undefined} hearing={rec.hearing} />
+          {rec.hasResult && !rec.recording && !rec.settling ? (
+            <>
+              <textarea
+                className="transcript-edit"
+                dir={rec.transcript ? textDir(rec.transcript) : lang === "ur" ? "rtl" : "ltr"}
+                value={rec.transcript}
+                onChange={(e) => rec.setTranscript(e.target.value)}
+                onBlur={() => void fillFromSpeech(rec.transcript)}
+                placeholder={rec.canTranscribe ? "Fix the text if needed" : "Add a short written description (optional)"}
+              />
+              <button className="text-button small" onClick={startRecording}>
+                Record again
+              </button>
+            </>
           ) : (
-            <div className="hint">{rec.transcript || "e.g. Electrical wiring in kitchen..."}</div>
+            <div className="hint" dir={textDir(rec.transcript || (lang === "ur" ? "ا" : ""))}>
+              {rec.transcript ||
+                (lang === "ur" ? "مثال: کچن میں بجلی کی وائرنگ خراب ہے، جی گیارہ، آج شام" : "e.g. Kitchen wiring is faulty, G-11, this evening")}
+            </div>
+          )}
+          {!rec.canTranscribe && (
+            <small className="voice-status">This browser records voice only. Use Chrome or Edge for automatic text.</small>
           )}
           <ErrorNote message={rec.error} />
         </div>
@@ -696,7 +752,15 @@ export function RequestScreen({ go, back, flash, urdu }: ScreenProps) {
       )}
       {aiState === "working" && <div className="ai-status">AI is reading your request…</div>}
       {aiState === "done" && (
-        <div className="ai-status done">AI filled in the details below. Check them before sending.</div>
+        <div className="ai-status done">
+          AI filled in the details below. Check them before sending.
+          {aiTitle && (
+            <>
+              <br />
+              <b>{aiTitle}</b>
+            </>
+          )}
+        </div>
       )}
       {aiState === "unavailable" && (
         <div className="ai-status">AI is unavailable right now. Please fill in the details below.</div>
@@ -884,10 +948,18 @@ export function ChatScreen({ back }: ScreenProps) {
   // Speak instead of typing: speech is turned into the message text, which the
   // sender can check before sending.
   const [voiceLang, setVoiceLang] = useState<"ur" | "en">("ur");
-  const dictation = useRecorder(voiceLang);
+  // Text only: recording audio too would block speech recognition on Android.
+  const dictation = useRecorder(voiceLang, { audio: false, maxSeconds: 60 });
+  const typedBefore = useRef("");
+  const startDictation = () => {
+    typedBefore.current = draft.trim();
+    void dictation.start();
+  };
   useEffect(() => {
-    if (dictation.recording || dictation.transcript) setDraft(dictation.transcript);
-  }, [dictation.transcript, dictation.recording]);
+    if (!dictation.transcript) return;
+    // Add the spoken words after anything already typed.
+    setDraft([typedBefore.current, dictation.transcript].filter(Boolean).join(" "));
+  }, [dictation.transcript]);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -911,6 +983,7 @@ export function ChatScreen({ back }: ScreenProps) {
     try {
       await sendMessage(partner.id, body);
       setDraft("");
+      typedBefore.current = "";
       dictation.reset();
       messages.reload();
     } catch (err) {
@@ -955,8 +1028,11 @@ export function ChatScreen({ back }: ScreenProps) {
       </div>
       <ErrorNote message={error ?? dictation.error} />
       {dictation.recording && (
-        <div className="dictation-hint">Listening… speak your message, then tap the mic again.</div>
+        <div className="dictation-hint">
+          {dictation.hearing ? "Listening…" : "Speak now…"} Tap the mic again when you finish.
+        </div>
       )}
+      {dictation.settling && <div className="dictation-hint">Finishing…</div>}
       <form className="chat-input" onSubmit={submit}>
         <button
           type="button"
@@ -972,15 +1048,18 @@ export function ChatScreen({ back }: ScreenProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <button
-          type="button"
-          className={`chat-mic ${dictation.recording ? "recording" : ""}`}
-          onClick={() => (dictation.recording ? dictation.stop() : dictation.start())}
-          aria-label={dictation.recording ? "Stop speaking" : "Speak a message"}
-        >
-          <Icon name="mic" size={19} />
-        </button>
-        <button disabled={sending || dictation.recording} aria-label="Send">
+        {dictation.canTranscribe && (
+          <button
+            type="button"
+            className={`chat-mic ${dictation.recording ? "recording" : ""}`}
+            onClick={() => (dictation.recording ? dictation.stop() : startDictation())}
+            disabled={dictation.settling}
+            aria-label={dictation.recording ? "Stop speaking" : "Speak a message"}
+          >
+            <Icon name="mic" size={19} />
+          </button>
+        )}
+        <button disabled={sending || dictation.recording || dictation.settling} aria-label="Send">
           <Icon name="send" size={19} />
         </button>
       </form>
