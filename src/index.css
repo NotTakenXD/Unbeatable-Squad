@@ -30,6 +30,13 @@
   textarea {
     font: inherit;
   }
+  /* Tailwind's reset makes headings normal weight; the design expects them bold. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 700;
+  }
   button {
     cursor: pointer;
   }
@@ -451,23 +458,13 @@
 }
 .mosque-art {
   position: absolute;
-  bottom: 32px;
-  left: 0;
-  right: 0;
-  height: 115px;
-  opacity: 0.25;
-  background: linear-gradient(165deg, transparent 52%, #1e8e5a 53% 69%, transparent 70%);
-  border-bottom: 8px solid var(--green);
-}
-.mosque-art b {
-  position: absolute;
   bottom: 0;
-  left: 50%;
-  width: 100px;
-  height: 60px;
-  transform: translateX(-50%);
-  border: 5px solid var(--green);
-  clip-path: polygon(50% 0, 100% 60%, 88% 100%, 12% 100%, 0 60%);
+  left: 0;
+  width: 100%;
+  height: 120px;
+  fill: var(--green);
+  opacity: 0.18;
+  pointer-events: none;
 }
 .home-screen {
   padding: 4px 18px 20px;
@@ -3181,4 +3178,17 @@ body {
 .request-actions button:disabled,
 .primary-button:disabled {
   opacity: 0.6;
+}
+
+.status-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Let the first page scroll on short phones so the Continue buttons stay reachable. */
+.app-viewport .home-screen {
+  height: calc(100% - 49px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }

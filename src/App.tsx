@@ -86,13 +86,20 @@ function Splash({ go }: { go: (id: ScreenId) => void }) {
         bharose ke saath.
       </p>
       <small>Work through your voice. Trust through experience.</small>
-      <div className="mosque-art">
-        <span />
-        <i />
-        <b />
-        <i />
-        <span />
-      </div>
+      <svg className="mosque-art" viewBox="0 0 390 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <path d="M0 92 C70 70 120 84 195 80 C270 76 320 66 390 82 V120 H0Z" fill="#1e8e5a" opacity=".35" />
+        {/* minarets */}
+        <rect x="128" y="34" width="12" height="62" rx="2" />
+        <path d="M126 36 L134 18 L142 36Z" />
+        <rect x="250" y="34" width="12" height="62" rx="2" />
+        <path d="M248 36 L256 18 L264 36Z" />
+        {/* prayer hall + dome */}
+        <rect x="150" y="66" width="90" height="30" rx="2" />
+        <path d="M160 68 C160 40 178 30 195 26 C212 30 230 40 230 68Z" />
+        <rect x="193.5" y="12" width="3" height="16" rx="1.5" />
+        <circle cx="195" cy="11" r="3.5" />
+        <path d="M0 100 C80 90 140 98 195 96 C260 94 320 88 390 98 V120 H0Z" />
+      </svg>
     </main>
   );
 }

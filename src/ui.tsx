@@ -239,7 +239,24 @@ export function StatusBar() {
   return (
     <div className="status-bar">
       <strong>9:41</strong>
-      <span>● ◒ ▰</span>
+      <span className="status-icons" aria-hidden="true">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
+          <rect x="0" y="7" width="3" height="4" rx="1" />
+          <rect x="4.5" y="5" width="3" height="6" rx="1" />
+          <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
+          <rect x="13.5" y="0" width="3" height="11" rx="1" />
+        </svg>
+        <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+          <path d="M1 4a9.5 9.5 0 0 1 13 0" />
+          <path d="M3.5 6.6a6 6 0 0 1 8 0" />
+          <circle cx="7.5" cy="9.3" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <svg width="24" height="11" viewBox="0 0 24 11" fill="none">
+          <rect x=".5" y=".5" width="20" height="10" rx="3" stroke="currentColor" opacity=".45" />
+          <rect x="2" y="2" width="16" height="7" rx="1.6" fill="currentColor" />
+          <rect x="21.5" y="3.5" width="1.6" height="4" rx=".8" fill="currentColor" opacity=".45" />
+        </svg>
+      </span>
     </div>
   );
 }
