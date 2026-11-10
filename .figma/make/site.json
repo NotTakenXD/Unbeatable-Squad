@@ -1,0 +1,10 @@
+{
+  "description": "A bilingual, voice-first marketplace connecting customers across Pakistan with trusted skilled workers for local services, bookings, and job opportunities.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

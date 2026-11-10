@@ -1,0 +1,1639 @@
+import { useEffect, useState } from "react";
+
+type ScreenId =
+  | "splash"
+  | "home"
+  | "customer-welcome"
+  | "worker-welcome"
+  | "customer-dashboard"
+  | "search"
+  | "profile"
+  | "request"
+  | "chat"
+  | "confirmed"
+  | "bookings"
+  | "voice-register"
+  | "ai-extraction"
+  | "worker-dashboard"
+  | "find-work"
+  | "apply"
+  | "worker-bookings"
+  | "customer-profile"
+  | "earnings"
+  | "worker-profile"
+  | "rating";
+
+type Role = "customer" | "worker";
+
+type IconName =
+  | "home"
+  | "search"
+  | "calendar"
+  | "user"
+  | "bell"
+  | "pin"
+  | "bolt"
+  | "drop"
+  | "hammer"
+  | "snow"
+  | "mic"
+  | "chevron"
+  | "arrow"
+  | "share"
+  | "heart"
+  | "check"
+  | "send"
+  | "shield"
+  | "star"
+  | "hardhat"
+  | "briefcase"
+  | "message"
+  | "filter"
+  | "swap"
+  | "wallet";
+
+function Icon({
+  name,
+  size = 24,
+  filled = false,
+}: {
+  name: IconName;
+  size?: number;
+  filled?: boolean;
+}) {
+  const paths: Record<IconName, React.ReactNode> = {
+    home: (
+      <>
+        <path d="M3 11.5 12 4l9 7.5" />
+        <path d="M5.5 10v10h13V10M9 20v-6h6v6" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="m16 16 5 5" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="3" />
+        <path d="M8 3v4m8-4v4M3 10h18" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4.5 21c.7-4.2 3.2-6 7.5-6s6.8 1.8 7.5 6" />
+      </>
+    ),
+    bell: (
+      <>
+        <path d="M6 17h12l-1.5-2.5V10a4.5 4.5 0 0 0-9 0v4.5L6 17Z" />
+        <path d="M10 20h4" />
+      </>
+    ),
+    pin: (
+      <>
+        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+        <circle cx="12" cy="10" r="2.5" />
+      </>
+    ),
+    bolt: <path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z" />,
+    drop: <path d="M12 2S5 10.2 5 15a7 7 0 0 0 14 0c0-4.8-7-13-7-13Z" />,
+    hammer: (
+      <>
+        <path d="m14 6 4-4 4 4-4 4" />
+        <path d="m16 8-3 3M4 20l9-9 3 3-9 9Z" />
+      </>
+    ),
+    snow: (
+      <>
+        <path d="M12 2v20M4 7l16 10M4 17 20 7" />
+        <path d="m9 4 3 3 3-3M9 20l3-3 3 3" />
+      </>
+    ),
+    mic: (
+      <>
+        <rect x="8" y="3" width="8" height="13" rx="4" />
+        <path d="M5 12a7 7 0 0 0 14 0M12 19v3" />
+      </>
+    ),
+    chevron: <path d="m9 6 6 6-6 6" />,
+    arrow: <path d="m15 18-6-6 6-6" />,
+    share: (
+      <>
+        <circle cx="18" cy="5" r="2.5" />
+        <circle cx="6" cy="12" r="2.5" />
+        <circle cx="18" cy="19" r="2.5" />
+        <path d="m8.2 10.8 7.5-4.5m-7.5 6.9 7.5 4.5" />
+      </>
+    ),
+    heart: (
+      <path
+        fill={filled ? "currentColor" : "none"}
+        d="M20.8 5.8c-2.6-2.7-6.8-1.2-8.8 1.4-2-2.6-6.2-4.1-8.8-1.4C.2 9 3 14.7 12 21c9-6.3 11.8-12 8.8-15.2Z"
+      />
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    send: <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
+    shield: (
+      <>
+        <path d="M12 2 4 5v6c0 5.4 3 8.8 8 11 5-2.2 8-5.6 8-11V5l-8-3Z" />
+        <path d="m8.5 12 2.2 2.2L16 9" />
+      </>
+    ),
+    star: (
+      <path
+        fill={filled ? "currentColor" : "none"}
+        d="m12 2.5 3 6 6.6 1-4.8 4.7 1.2 6.6-6-3.1-6 3.1 1.2-6.6-4.8-4.7 6.6-1 3-6Z"
+      />
+    ),
+    hardhat: (
+      <>
+        <path d="M4 14a8 8 0 0 1 16 0" />
+        <path d="M2 14h20v4H2zM9 6v8m6-8v8" />
+      </>
+    ),
+    briefcase: (
+      <>
+        <rect x="3" y="7" width="18" height="14" rx="2" />
+        <path d="M9 7V4h6v3M3 13h18M10 12h4v3h-4z" />
+      </>
+    ),
+    message: <path d="M4 4h16v13H9l-5 4V4Z" />,
+    filter: <path d="M4 6h16M7 12h10m-7 6h4" />,
+    swap: (
+      <>
+        <path d="M4 8h13l-3-3m3 3-3 3" />
+        <path d="M20 16H7l3 3m-3-3 3-3" />
+      </>
+    ),
+    wallet: (
+      <>
+        <path d="M4 6h15a2 2 0 0 1 2 2v11H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h13" />
+        <path d="M15 11h6v5h-6a2.5 2.5 0 0 1 0-5Z" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+function Logo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`logo ${compact ? "logo-compact" : ""}`} aria-label="Roshan Rozgar">
+      <div className="logo-mark">
+        <svg viewBox="0 0 80 74" aria-hidden="true">
+          <path
+            d="M9 34 40 8l31 26v31H51V46H29v19H9V34Z"
+            fill="none"
+            stroke="#0B5D3B"
+            strokeWidth="6"
+            strokeLinejoin="round"
+          />
+          <path
+            d="m22 42 12 11 9-8 15 13"
+            fill="none"
+            stroke="#D9A520"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="m28 54 9 8 14-13"
+            fill="none"
+            stroke="#0B5D3B"
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+      {!compact && (
+        <div className="logo-copy">
+          <strong>Roshan Rozgar</strong>
+          <span lang="ur" dir="rtl">
+            روشن روزگار
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBar() {
+  return (
+    <div className="status-bar">
+      <strong>9:41</strong>
+      <span>● ◒ ▰</span>
+    </div>
+  );
+}
+
+function PrimaryButton({
+  children,
+  onClick,
+  loading = false,
+  outline = false,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  loading?: boolean;
+  outline?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      disabled={disabled || loading}
+      className={`primary-button ${outline ? "outline" : ""} ${loading ? "loading" : ""}`}
+      onClick={onClick}
+    >
+      {loading ? <span className="spinner" /> : children}
+    </button>
+  );
+}
+
+function Avatar({ large = false }: { large?: boolean }) {
+  return (
+    <img
+      className={`avatar ${large ? "avatar-large" : ""}`}
+      src="/assets/worker-ali.jpg"
+      alt="Ali Khan, electrician"
+    />
+  );
+}
+
+function Stars({ count = 5, interactive = false }: { count?: number; interactive?: boolean }) {
+  const [rating, setRating] = useState(count);
+  return (
+    <div className={`stars ${interactive ? "interactive" : ""}`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          disabled={!interactive}
+          onClick={() => setRating(n)}
+          aria-label={`${n} stars`}
+        >
+          <Icon name="star" size={22} filled={n <= rating} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function BottomNav({
+  active = "Home",
+  workerMode = false,
+  go,
+}: {
+  active?: string;
+  workerMode?: boolean;
+  go: (id: ScreenId) => void;
+}) {
+  const items = workerMode
+    ? [
+        ["Home", "home", "worker-dashboard"],
+        ["Jobs", "briefcase", "find-work"],
+        ["Earnings", "wallet", "earnings"],
+        ["Profile", "user", "worker-profile"],
+      ]
+    : [
+        ["Home", "home", "customer-dashboard"],
+        ["Search", "search", "search"],
+        ["Bookings", "calendar", "bookings"],
+        ["Profile", "user", "customer-profile"],
+      ];
+  return (
+    <nav className="bottom-nav">
+      {items.map(([label, icon, target]) => (
+        <button
+          key={label}
+          className={active === label ? "active" : ""}
+          onClick={() => go(target as ScreenId)}
+        >
+          <Icon name={icon as IconName} size={21} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function TopBar({
+  title,
+  back,
+  action,
+}: {
+  title?: string;
+  back?: () => void;
+  action?: React.ReactNode;
+}) {
+  return (
+    <header className="topbar">
+      {back ? (
+        <button className="icon-button" onClick={back}>
+          <Icon name="arrow" size={22} />
+        </button>
+      ) : (
+        <Logo compact />
+      )}
+      <strong>{title}</strong>
+      <div>{action}</div>
+    </header>
+  );
+}
+
+function Service({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
+  return (
+    <button className="service-item" onClick={onClick}>
+      <span>
+        <Icon name={icon} />
+      </span>
+      <small>{label}</small>
+    </button>
+  );
+}
+
+function WorkerCard({
+  name = "Ali Khan",
+  rating = "4.8 (120)",
+  price = "1,500",
+  onClick,
+}: {
+  name?: string;
+  rating?: string;
+  price?: string;
+  onClick: () => void;
+}) {
+  return (
+    <article className="worker-card tappable" onClick={onClick}>
+      <Avatar />
+      <div className="grow">
+        <div className="row">
+          <strong>{name}</strong>
+          <span className="badge">
+            <i />
+            Available
+          </span>
+        </div>
+        <small>Electrician</small>
+        <div className="rating">★ {rating}</div>
+        <b>Rs. {price}</b>
+      </div>
+      <span className="mini-link">View Profile</span>
+    </article>
+  );
+}
+
+function Waveform({ active }: { active: boolean }) {
+  return (
+    <div className={`waveform ${active ? "active" : ""}`}>
+      {Array.from({ length: 25 }, (_, i) => (
+        <i key={i} style={{ "--i": i } as React.CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
+function PhoneScreen({
+  id,
+  go,
+  onBack,
+  role,
+  selectRole,
+  openRoleSelection,
+  prototype = false,
+  onClose,
+}: {
+  id: ScreenId;
+  go: (id: ScreenId) => void;
+  onBack?: () => void;
+  role: Role | null;
+  selectRole: (role: Role) => void;
+  openRoleSelection: () => void;
+  prototype?: boolean;
+  onClose?: () => void;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recorded, setRecorded] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+  const [available, setAvailable] = useState(true);
+  const [filter, setFilter] = useState("All");
+  const [tab, setTab] = useState("Upcoming");
+  const [loading, setLoading] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [urdu, setUrdu] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [toast, setToast] = useState("");
+  const [countering, setCountering] = useState(false);
+  const [jobTab, setJobTab] = useState("New Requests");
+  const flash = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 1800);
+  };
+  const asyncGo = (target: ScreenId, message: string) => {
+    setLoading(true);
+    window.setTimeout(() => {
+      setLoading(false);
+      flash(message);
+      go(target);
+    }, 850);
+  };
+  const backMap: Partial<Record<ScreenId, ScreenId>> = {
+    search: "customer-dashboard",
+    profile: "search",
+    request: "profile",
+    chat: "request",
+    confirmed: "chat",
+    bookings: "confirmed",
+    "voice-register": "worker-welcome",
+    "ai-extraction": "voice-register",
+    "worker-dashboard": "ai-extraction",
+    "find-work": "worker-dashboard",
+    apply: "find-work",
+    "worker-bookings": "apply",
+    earnings: "worker-dashboard",
+    "customer-profile": "customer-dashboard",
+    "worker-profile": "worker-dashboard",
+    rating: "worker-bookings",
+  };
+  const back = onBack ?? (backMap[id] ? () => go(backMap[id]!) : undefined);
+
+  useEffect(() => {
+    if (!prototype) return;
+    if (id === "splash") {
+      const timer = window.setTimeout(() => go("home"), 2000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [id, prototype]);
+
+  const shell = (content: React.ReactNode, className = "") => (
+    <div className={`screen ${className} ${urdu ? "urdu-mode" : ""}`} dir={urdu ? "rtl" : "ltr"}>
+      <StatusBar />
+      {toast && <div className="toast">{toast}</div>}
+      {prototype && onClose && (
+        <button className="close-prototype" onClick={onClose} aria-label="Close prototype">
+          ×
+        </button>
+      )}
+      {role &&
+        id !== "home" &&
+        id !== "splash" &&
+        !["customer-dashboard", "worker-dashboard", "customer-profile", "worker-profile"].includes(
+          id,
+        ) && (
+          <button className="global-role-switch" onClick={openRoleSelection}>
+            <Icon name="swap" size={15} />
+            Switch Role
+          </button>
+        )}
+      {content}
+      <div className="home-indicator" />
+    </div>
+  );
+
+  if (id === "splash")
+    return shell(
+      <main className="splash-content">
+        <div className="splash-logo">
+          <Logo />
+        </div>
+        <p>
+          Awaz se kaam,
+          <br />
+          bharose ke saath.
+        </p>
+        <small>Work through your voice. Trust through experience.</small>
+        <div className="mosque-art">
+          <span />
+          <i />
+          <b />
+          <i />
+          <span />
+        </div>
+      </main>,
+      "splash-screen",
+    );
+
+  if (id === "home")
+    return shell(
+      <main className="home-screen">
+        <div className="home-head">
+          <Logo compact />
+          <button className="language" onClick={() => setLangOpen(!langOpen)}>
+            {urdu ? "اردو" : "EN"}⌄
+          </button>
+          {langOpen && (
+            <div className="language-menu">
+              <button
+                onClick={() => {
+                  setUrdu(false);
+                  setLangOpen(false);
+                }}
+              >
+                English
+              </button>
+              <button
+                onClick={() => {
+                  setUrdu(true);
+                  setLangOpen(false);
+                }}
+              >
+                اردو
+              </button>
+            </div>
+          )}
+        </div>
+        <section className="home-hero">
+          <div>
+            <h1>
+              Skilled workers,
+              <br />
+              just a few steps away.
+            </h1>
+            <p lang="ur" dir="rtl">
+              ماہر کاریگر، آپ کے قریب
+            </p>
+          </div>
+          <img src="/assets/worker-hero.jpg" alt="Smiling skilled worker in a hard hat" />
+        </section>
+        <div className="role-grid">
+          <article className={`role-card ${role === "customer" ? "current-role" : ""}`}>
+            {role === "customer" && <span className="current-badge">Current</span>}
+            <div className="role-icon">
+              <Icon name="home" size={32} />
+            </div>
+            <h3>I need a worker</h3>
+            <p lang="ur">مجھے کاریگر چاہیے</p>
+            <PrimaryButton onClick={() => selectRole("customer")}>Continue</PrimaryButton>
+          </article>
+          <article className={`role-card ${role === "worker" ? "current-role" : ""}`}>
+            {role === "worker" && <span className="current-badge">Current</span>}
+            <div className="role-icon gold">
+              <Icon name="hardhat" size={32} />
+            </div>
+            <h3>I want to find work</h3>
+            <p lang="ur">میں کام تلاش کرنا چاہتا ہوں</p>
+            <PrimaryButton onClick={() => selectRole("worker")}>Continue</PrimaryButton>
+          </article>
+        </div>
+        <p className="tagline">Awaz se kaam, bharose ke saath.</p>
+      </main>,
+    );
+
+  if (id === "customer-welcome")
+    return shell(
+      <main
+        className="welcome-screen"
+        onClick={() => go("customer-dashboard")}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") go("customer-dashboard");
+        }}
+      >
+        <div className="welcome-landscape">
+          <div className="sun" />
+          <div className="mountain m1" />
+          <div className="mountain m2" />
+          <div className="little-house">⌂</div>
+        </div>
+        <div className="welcome-icon">
+          <Icon name="home" size={55} />
+          <b>
+            <Icon name="check" size={20} />
+          </b>
+        </div>
+        <h1>Welcome!</h1>
+        <h2>
+          Find a skilled worker
+          <br />
+          near you.
+        </h2>
+        <p lang="ur" dir="rtl">
+          اپنے قریب ماہر کاریگر تلاش کریں
+        </p>
+      </main>,
+      "welcome-bg",
+    );
+
+  if (id === "worker-welcome")
+    return shell(
+      <main className="welcome-screen worker-welcome">
+        <div className="welcome-icon">
+          <Icon name="hardhat" size={62} />
+        </div>
+        <h1>Welcome!</h1>
+        <h2>Ready to find work?</h2>
+        <p>
+          Just speak or register
+          <br />
+          to create your profile.
+        </p>
+        <p lang="ur" dir="rtl">
+          کام تلاش کرنے کے لیے تیار ہیں؟
+        </p>
+        <img src="/assets/worker-hero.jpg" alt="Worker standing ready for work" />
+        <PrimaryButton onClick={() => go("voice-register")}>Start Registration</PrimaryButton>
+      </main>,
+    );
+
+  if (id === "customer-dashboard")
+    return shell(
+      <main className="app-screen customer-portal">
+        <div className="portal-accent customer" />
+        <div className="dashboard-head">
+          <div className="person">
+            <div className="aleena">A</div>
+            <div>
+              <small>Assalam-o-Alaikum,</small>
+              <strong>Aleena!</strong>
+            </div>
+          </div>
+          <div className="header-actions">
+            <button className="switch-role-pill" onClick={openRoleSelection}>
+              <Icon name="swap" size={15} />
+              <span>
+                Switch Role<small lang="ur">کردار تبدیل کریں</small>
+              </span>
+            </button>
+            <button
+              className="bell"
+              onClick={(e) => {
+                e.currentTarget.classList.add("shake");
+                flash("Notifications cleared");
+              }}
+            >
+              <Icon name="bell" />
+              <i />
+            </button>
+          </div>
+        </div>
+        <button className="location-chip">
+          <Icon name="pin" size={16} />
+          Islamabad⌄
+        </button>
+        <button className="search-field" onClick={() => go("search")}>
+          <Icon name="search" size={19} />
+          <span>What service do you need?</span>
+        </button>
+        <div className="section-title">
+          <h3>Popular Services</h3>
+          <button onClick={() => go("search")}>See all</button>
+        </div>
+        <div className="services">
+          <Service icon="bolt" label="Electrician" onClick={() => go("search")} />
+          <Service icon="drop" label="Plumber" onClick={() => go("search")} />
+          <Service icon="hammer" label="Carpenter" onClick={() => go("search")} />
+          <Service icon="snow" label="AC Tech" onClick={() => go("search")} />
+        </div>
+        <div className="section-title">
+          <h3>Top Rated Workers</h3>
+          <button onClick={() => go("search")}>See all</button>
+        </div>
+        <WorkerCard onClick={() => go("profile")} />
+        <button className="post-job-card" onClick={() => go("request")}>
+          <span>
+            <Icon name="briefcase" />
+          </span>
+          <div>
+            <strong>Post a Job</strong>
+            <small>Describe the work and receive offers</small>
+          </div>
+          <Icon name="chevron" size={18} />
+        </button>
+        <div className="section-title compact-title">
+          <h3>
+            <Icon name="heart" size={17} filled /> Saved Workers
+          </h3>
+          <button onClick={() => go("search")}>View all</button>
+        </div>
+        <WorkerCard
+          name="Usman Ahmed"
+          rating="4.7 (98)"
+          price="1,600"
+          onClick={() => go("profile")}
+        />
+        <div className="section-title compact-title">
+          <h3>Recent Bookings</h3>
+        </div>
+        <article className="recent-booking">
+          <Avatar />
+          <div className="grow">
+            <strong>Ali Khan</strong>
+            <small>Kitchen wiring • Completed</small>
+          </div>
+          <button onClick={() => go("request")}>Book Again</button>
+        </article>
+        <BottomNav active="Home" go={go} />
+      </main>,
+    );
+
+  if (id === "search")
+    return shell(
+      <main className="app-screen">
+        <TopBar title="Search Workers" back={back} />
+        <div className="search-row">
+          <div className="search-field">
+            <Icon name="search" size={19} />
+            <input value="Electrician" readOnly />
+            <button>×</button>
+          </div>
+          <button
+            className="filter"
+            onClick={() =>
+              setFilter(
+                filter === "All" ? "Available" : filter === "Available" ? "Top Rated" : "All",
+              )
+            }
+          >
+            <Icon name="filter" />
+          </button>
+        </div>
+        <div className="chips">
+          {["All", "Available", "Top Rated"].map((item) => (
+            <button
+              key={item}
+              className={filter === item ? "active" : ""}
+              onClick={() => setFilter(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="card-stack" key={filter}>
+          <WorkerCard onClick={() => go("profile")} />
+          <WorkerCard
+            name="Usman Ahmed"
+            rating="4.7 (98)"
+            price="1,600"
+            onClick={() => go("profile")}
+          />
+        </div>
+        <BottomNav active="Search" go={go} />
+      </main>,
+    );
+
+  if (id === "profile")
+    return shell(
+      <main className="profile-screen">
+        <div className="profile-photo">
+          <img src="/assets/worker-ali.jpg" alt="Ali Khan" />
+          <button className="floating back" onClick={back}>
+            <Icon name="arrow" />
+          </button>
+          <div className="profile-actions">
+            <button className="floating" onClick={() => flash("Profile link copied")}>
+              <Icon name="share" />
+            </button>
+            <button className={`floating ${saved ? "saved" : ""}`} onClick={() => setSaved(!saved)}>
+              <Icon name="heart" filled={saved} />
+            </button>
+          </div>
+        </div>
+        <div className="profile-body">
+          <h1>Ali Khan</h1>
+          <div className="profile-rating">
+            <span>★</span> 4.8 (120 reviews)
+          </div>
+          <div className="info-row">
+            <span>
+              <b>5</b> years exp.
+            </span>
+            <span>
+              <Icon name="pin" size={17} />
+              G-11 Islamabad
+            </span>
+          </div>
+          <h3>Skills</h3>
+          <div className="skill-chips">
+            <span>Electrical Wiring</span>
+            <span>Repair</span>
+          </div>
+          <h3>Services</h3>
+          <div className="services-list">
+            <span>Wiring</span>
+            <span>Switch Repair</span>
+          </div>
+          <PrimaryButton onClick={() => go("request")}>Request This Worker</PrimaryButton>
+          <PrimaryButton outline onClick={() => go("chat")}>
+            Contact Worker
+          </PrimaryButton>
+        </div>
+      </main>,
+    );
+
+  if (id === "request")
+    return shell(
+      <main className="app-screen request-screen">
+        <TopBar title="Describe Your Job" back={back} />
+        <div className="segment">
+          <button className={voiceMode ? "active" : ""} onClick={() => setVoiceMode(true)}>
+            Voice
+          </button>
+          <button className={!voiceMode ? "active" : ""} onClick={() => setVoiceMode(false)}>
+            Text
+          </button>
+        </div>
+        {voiceMode ? (
+          <div className="voice-panel">
+            <button
+              className={`mic-button ${recording ? "recording" : ""}`}
+              onClick={() => {
+                if (recording) setRecorded(true);
+                setRecording(!recording);
+              }}
+            >
+              {recording ? "■" : <Icon name="mic" size={45} />}
+            </button>
+            <strong>
+              {recording ? "Listening..." : recorded ? "Recording ready" : "Tap to record"}
+            </strong>
+            <small>{recording ? "00:05" : "00:00"}</small>
+            <Waveform active={recording} />
+            <div className="hint">
+              {recorded
+                ? "Electrical wiring in the kitchen needs repair."
+                : "e.g. Electrical wiring in kitchen..."}
+            </div>
+          </div>
+        ) : (
+          <div className="text-panel">
+            <textarea placeholder="Describe the work you need..." />
+            <small>Keyboard ready • You can type in English or Urdu</small>
+          </div>
+        )}
+        <PrimaryButton loading={loading} onClick={() => asyncGo("chat", "Request sent")}>
+          Send Request
+        </PrimaryButton>
+      </main>,
+    );
+
+  if (id === "chat")
+    return shell(
+      <main className="app-screen chat-screen">
+        <TopBar back={back} title="" action={<button>⋮</button>} />
+        <div className="chat-person">
+          <Avatar />
+          <div>
+            <strong>Ali Khan</strong>
+            <small>
+              <i />
+              Online
+            </small>
+          </div>
+        </div>
+        <div className="messages">
+          <div className="bubble worker-bubble">
+            Can you do it for
+            <br />
+            Rs. 1,500?<time>9:42</time>
+          </div>
+          <div className="bubble customer-bubble">
+            Yes, agreed.<time>9:43</time>
+          </div>
+          <div className="bubble amount-bubble">
+            Rs. 1,500 <b>✓</b>
+          </div>
+          <button className="agreed" onClick={() => go("confirmed")}>
+            <Icon name="check" size={16} />
+            Price agreed.
+          </button>
+        </div>
+        <form
+          className="chat-input"
+          onSubmit={(e) => {
+            e.preventDefault();
+            flash("Message sent");
+          }}
+        >
+          <input placeholder="Type a message..." />
+          <button>
+            <Icon name="send" size={19} />
+          </button>
+        </form>
+      </main>,
+    );
+
+  if (id === "confirmed")
+    return shell(
+      <main className="confirmed-screen">
+        <button className="back-link" onClick={back}>
+          <Icon name="arrow" />
+        </button>
+        <div className="confetti">
+          {Array.from({ length: 16 }, (_, i) => (
+            <i key={i} />
+          ))}
+        </div>
+        <div className="confirm-check">
+          <Icon name="check" size={54} />
+        </div>
+        <h1>Booking Confirmed!</h1>
+        <p>
+          Your booking is confirmed
+          <br />
+          with <strong>Ali Khan.</strong>
+        </p>
+        <article className="details-card">
+          <div>
+            <Icon name="calendar" />
+            <span>
+              <small>Date & Time</small>
+              <strong>Tomorrow, 10:00 AM</strong>
+            </span>
+          </div>
+          <div>
+            <Icon name="pin" />
+            <span>
+              <small>Location</small>
+              <strong>G-11 Islamabad</strong>
+            </span>
+          </div>
+          <div>
+            <Icon name="briefcase" />
+            <span>
+              <small>Agreed Price</small>
+              <strong>Rs. 1,500</strong>
+            </span>
+          </div>
+        </article>
+        <PrimaryButton onClick={() => go("bookings")}>View Booking</PrimaryButton>
+      </main>,
+    );
+
+  if (id === "bookings")
+    return shell(
+      <main className="app-screen">
+        <TopBar
+          title="My Bookings"
+          back={back}
+          action={
+            <button
+              className="topbar-logo"
+              onClick={() => go("splash")}
+              aria-label="Restart prototype"
+            >
+              <Logo compact />
+            </button>
+          }
+        />
+        <div className="segment tabs">
+          <button className={tab === "Upcoming" ? "active" : ""} onClick={() => setTab("Upcoming")}>
+            Upcoming
+          </button>
+          <button
+            className={tab === "Completed" ? "active" : ""}
+            onClick={() => setTab("Completed")}
+          >
+            Completed
+          </button>
+        </div>
+        <article className="booking-card" key={tab}>
+          <div className="row">
+            <Avatar />
+            <div className="grow">
+              <strong>Ali Khan</strong>
+              <small>Electrician</small>
+            </div>
+            <span className="badge confirmed">
+              <i />
+              {tab === "Upcoming" ? "Confirmed" : "Completed"}
+            </span>
+          </div>
+          <div className="booking-meta">
+            <span>
+              <Icon name="calendar" size={17} />
+              Tomorrow, 10:00 AM
+            </span>
+            <b>Rs. 1,500</b>
+          </div>
+          <PrimaryButton onClick={() => flash("Booking details opened")}>
+            View Details
+          </PrimaryButton>
+        </article>
+        <div className="track-card">
+          <h3>Track Worker</h3>
+          <div className="status-stepper">
+            {["Confirmed", "On the way", "Working", "Done"].map((step, index) => (
+              <div className={index < (tab === "Completed" ? 4 : 2) ? "complete" : ""} key={step}>
+                <i>{index < (tab === "Completed" ? 4 : 2) ? "✓" : index + 1}</i>
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
+          {tab === "Completed" && (
+            <div className="inline-rating">
+              <Stars interactive />
+              <PrimaryButton onClick={() => flash("Rating submitted")}>Rate Worker</PrimaryButton>
+            </div>
+          )}
+        </div>
+        <BottomNav active="Bookings" go={go} />
+      </main>,
+    );
+
+  if (id === "voice-register")
+    return shell(
+      <main className="app-screen voice-register">
+        <TopBar back={back} />
+        <h1>
+          Let’s create your
+          <br />
+          professional profile.
+        </h1>
+        <h2>Speak about yourself.</h2>
+        <p lang="ur" dir="rtl">
+          اپنے بارے میں بتائیں
+        </p>
+        <button
+          className={`mic-button ${recording ? "recording" : ""}`}
+          onClick={() => setRecording(!recording)}
+        >
+          {recording ? "■" : <Icon name="mic" size={48} />}
+        </button>
+        <strong>{recording ? "Listening... 00:05" : "Tap the mic to begin"}</strong>
+        <Waveform active={recording} />
+        <PrimaryButton onClick={() => go("ai-extraction")}>
+          {recording ? "Stop Recording" : "Start Recording"}
+        </PrimaryButton>
+      </main>,
+    );
+
+  if (id === "ai-extraction")
+    return shell(
+      <main className="app-screen extraction">
+        <TopBar title="AI Extracted Information" back={back} />
+        <article className="extraction-card">
+          <div className="row">
+            <Avatar large />
+            <div>
+              <h2>Ali Khan</h2>
+              <strong>Electrician</strong>
+              <p>5 years • G-11</p>
+            </div>
+          </div>
+        </article>
+        <article className="skills-card">
+          <h3>Skills</h3>
+          <div className="skill-chips">
+            <span>Wiring</span>
+            <span>Repair</span>
+          </div>
+        </article>
+        <div className="ai-note">
+          <span>AI</span>
+          <p>We extracted these details from your voice. You can edit them later.</p>
+        </div>
+        <PrimaryButton
+          loading={loading}
+          onClick={() => asyncGo("worker-dashboard", "Profile created")}
+        >
+          Confirm Details
+        </PrimaryButton>
+      </main>,
+    );
+
+  if (id === "worker-dashboard")
+    return shell(
+      <main className="app-screen worker-portal">
+        <div className="dashboard-head">
+          <div className="person">
+            <Avatar />
+            <div>
+              <small>Assalam-o-Alaikum,</small>
+              <strong>Ali Khan!</strong>
+            </div>
+          </div>
+          <div className="header-actions">
+            <button className="switch-role-pill" onClick={openRoleSelection}>
+              <Icon name="swap" size={15} />
+              <span>
+                Switch Role<small lang="ur">کردار تبدیل کریں</small>
+              </span>
+            </button>
+            <button>
+              <Icon name="bell" />
+            </button>
+          </div>
+        </div>
+        <div className="portal-accent worker" />
+        <button
+          className={`availability ${available ? "on" : ""}`}
+          onClick={() => {
+            setAvailable(!available);
+            flash(available ? "You are now Unavailable" : "You are now Available");
+          }}
+        >
+          <span>
+            <Icon name="mic" />
+            {available ? "Available" : "Unavailable"}
+          </span>
+          <i />
+        </button>
+        <div className="stats">
+          <button onClick={() => go("find-work")}>
+            <b>12</b>
+            <span>New Requests</span>
+          </button>
+          <button onClick={() => go("worker-bookings")}>
+            <b>8</b>
+            <span>Active Jobs</span>
+          </button>
+        </div>
+        <h3 className="quick-title">Quick Actions</h3>
+        <div className="quick-actions">
+          <button onClick={() => go("find-work")}>
+            <span>
+              <Icon name="search" />
+            </span>
+            <b>Find Work</b>
+          </button>
+          <button onClick={() => go("worker-bookings")}>
+            <span>
+              <Icon name="briefcase" />
+            </span>
+            <b>My Requests</b>
+          </button>
+        </div>
+        <article className="tip-card">
+          <Icon name="star" filled />
+          <div>
+            <strong>Keep your profile active</strong>
+            <p>Available workers receive more job requests.</p>
+          </div>
+        </article>
+        <section className="schedule-card">
+          <div className="section-title compact-title">
+            <h3>Today&apos;s Schedule</h3>
+            <span>2 jobs</span>
+          </div>
+          <div>
+            <b>10:00 AM</b>
+            <span>Kitchen wiring • G-11</span>
+          </div>
+          <div>
+            <b>03:30 PM</b>
+            <span>Switch repair • F-8</span>
+          </div>
+        </section>
+        <section className="completeness-card">
+          <div className="row">
+            <strong>Profile Completeness</strong>
+            <b>78%</b>
+          </div>
+          <div className="progress">
+            <i />
+          </div>
+          <button onClick={() => go("voice-register")}>
+            <Icon name="mic" size={17} />
+            Record voice intro
+          </button>
+        </section>
+        <BottomNav active="Home" workerMode go={go} />
+      </main>,
+    );
+
+  if (id === "find-work")
+    return shell(
+      <main className="app-screen worker-portal">
+        <TopBar title="Jobs" back={back} />
+        <div className="three-tabs">
+          {["New Requests", "Applied", "Active"].map((item) => (
+            <button
+              className={jobTab === item ? "active" : ""}
+              onClick={() => setJobTab(item)}
+              key={item}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="job-stack" key={jobTab}>
+          {["Electrical wiring repair", "AC Servicing"].map((title, index) => (
+            <article className="request-card" key={title}>
+              <div className="row">
+                <div className="job-symbol">
+                  <Icon name={index ? "snow" : "bolt"} />
+                </div>
+                <div className="grow">
+                  <strong>{title}</strong>
+                  <small>
+                    <Icon name="pin" size={13} />
+                    {index ? "I-8 Islamabad" : "G-11 Islamabad"}
+                  </small>
+                </div>
+                <span className="urgency">Today</span>
+              </div>
+              <div className="request-meta">
+                <b>Rs. {index ? "2,500" : "1,500"}</b>
+                <span>2.4 km away</span>
+              </div>
+              {countering && index === 0 && (
+                <div className="counter-input">
+                  <span>Rs.</span>
+                  <input autoFocus defaultValue="1,600" />
+                  <button onClick={() => go("apply")}>Send</button>
+                </div>
+              )}
+              <div className="request-actions">
+                <button className="decline" onClick={() => flash("Request declined")}>
+                  Decline
+                </button>
+                <button className="counter" onClick={() => setCountering(true)}>
+                  Counter Offer
+                </button>
+                <button
+                  className="accept"
+                  onClick={() => {
+                    setApplied(true);
+                    flash("Job accepted");
+                  }}
+                >
+                  Accept
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+        <BottomNav active="Jobs" workerMode go={go} />
+      </main>,
+    );
+
+  if (id === "apply")
+    return shell(
+      <main className="app-screen apply-screen">
+        <TopBar title="Apply for Job" back={back} />
+        <div className="apply-summary">
+          <div className="job-symbol">
+            <Icon name="bolt" />
+          </div>
+          <div>
+            <strong>Electrical wiring repair</strong>
+            <p>G-11 Islamabad</p>
+          </div>
+        </div>
+        <label>
+          Proposed Price
+          <div className="price-input">
+            <span>Rs.</span>
+            <input value="1,600" readOnly />
+          </div>
+        </label>
+        <label>
+          Message <small>(optional)</small>
+          <textarea defaultValue="I can do this job." />
+        </label>
+        <div className="secure-note">
+          <Icon name="shield" />
+          <p>Your payment and personal details stay protected.</p>
+        </div>
+        <PrimaryButton
+          loading={loading}
+          onClick={() => asyncGo("worker-bookings", "Application submitted")}
+        >
+          Submit Application
+        </PrimaryButton>
+      </main>,
+    );
+
+  if (id === "worker-bookings")
+    return shell(
+      <main className="app-screen">
+        <TopBar title="Worker Bookings" back={back} />
+        <div className="segment tabs">
+          <button className={tab === "Upcoming" ? "active" : ""} onClick={() => setTab("Upcoming")}>
+            Pending
+          </button>
+          <button
+            className={tab !== "Upcoming" ? "active" : ""}
+            onClick={() => setTab("Completed")}
+          >
+            Confirmed
+          </button>
+        </div>
+        <article className="booking-card job-booking" key={tab}>
+          <div className="row">
+            <Avatar />
+            <div className="grow">
+              <strong>Bathroom Repair</strong>
+              <small>F-10 Islamabad</small>
+              <b>Rs. 2,000</b>
+            </div>
+            <span className="badge progress">
+              <i />
+              In Progress
+            </span>
+          </div>
+          <PrimaryButton outline onClick={() => go("rating")}>
+            View Details
+          </PrimaryButton>
+        </article>
+        <BottomNav active="Jobs" workerMode go={go} />
+      </main>,
+    );
+
+  if (id === "earnings")
+    return shell(
+      <main className="app-screen worker-portal">
+        <TopBar title="Earnings" back={back} />
+        <section className="earnings-total">
+          <small>Total this week</small>
+          <h1>Rs. 18,500</h1>
+          <span>+12% from last week</span>
+        </section>
+        <section className="chart-card">
+          <div className="section-title compact-title">
+            <h3>Weekly earnings</h3>
+            <span>Rs.</span>
+          </div>
+          <div className="bar-chart">
+            {[32, 58, 44, 76, 52, 88, 64].map((height, index) => (
+              <div key={index}>
+                <i style={{ height }} />
+                <small>{["M", "T", "W", "T", "F", "S", "S"][index]}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+        <div className="earning-stats">
+          <article>
+            <b>6</b>
+            <span>Completed jobs</span>
+          </article>
+          <article>
+            <b>Rs. 3,000</b>
+            <span>Pending payments</span>
+          </article>
+        </div>
+        <PrimaryButton onClick={() => flash("Withdrawal requested")}>Withdraw</PrimaryButton>
+        <BottomNav active="Earnings" workerMode go={go} />
+      </main>,
+    );
+
+  if (id === "customer-profile")
+    return shell(
+      <main className="app-screen portal-profile customer-portal">
+        <TopBar title="Profile" back={back} />
+        <RoleSwitchRow onClick={openRoleSelection} />
+        <div className="profile-summary">
+          <div className="aleena">A</div>
+          <div>
+            <h2>Aleena Ahmed</h2>
+            <p>Islamabad • Customer</p>
+          </div>
+        </div>
+        <ProfileRow icon="pin" title="Saved addresses" detail="Home, G-11 Islamabad" />
+        <ProfileRow
+          icon="heart"
+          title="Saved Workers"
+          detail="4 trusted professionals"
+          onClick={() => go("search")}
+        />
+        <ProfileRow
+          icon="calendar"
+          title="Booking history"
+          detail="8 completed bookings"
+          onClick={() => go("bookings")}
+        />
+        <ProfileRow icon="message" title="Help & Support" detail="We are here for you" />
+        <BottomNav active="Profile" go={go} />
+      </main>,
+    );
+
+  if (id === "worker-profile")
+    return shell(
+      <main className="app-screen portal-profile worker-portal">
+        <TopBar title="Professional Profile" back={back} />
+        <RoleSwitchRow onClick={openRoleSelection} />
+        <div className="profile-summary">
+          <Avatar large />
+          <div>
+            <h2>Ali Khan</h2>
+            <p>Electrician • 4.8 ★</p>
+          </div>
+        </div>
+        <section className="edit-section">
+          <div className="section-title compact-title">
+            <h3>Skills & Services</h3>
+            <button>Edit</button>
+          </div>
+          <div className="skill-chips">
+            <span>Wiring</span>
+            <span>Repair</span>
+            <span>AC Installation</span>
+          </div>
+        </section>
+        <section className="edit-section">
+          <div className="section-title compact-title">
+            <h3>Service Areas</h3>
+            <button>Edit</button>
+          </div>
+          <p>G-11, F-10, F-8, I-8 Islamabad</p>
+        </section>
+        <section className="rate-grid">
+          <div>
+            <small>Hourly rate</small>
+            <b>Rs. 800</b>
+          </div>
+          <div>
+            <small>Fixed jobs from</small>
+            <b>Rs. 1,500</b>
+          </div>
+        </section>
+        <button className="voice-profile-button" onClick={() => go("voice-register")}>
+          <Icon name="mic" />
+          Re-record voice profile
+        </button>
+        <section className="reviews-block">
+          <h3>
+            Reviews received <span>4.8 ★</span>
+          </h3>
+          <p>“Professional, punctual and excellent work.”</p>
+        </section>
+        <section className="portfolio">
+          <h3>Portfolio photos</h3>
+          <div>
+            <img src="/assets/worker-hero.jpg" alt="Completed electrical work" />
+            <img src="/assets/worker-ali.jpg" alt="Ali at work" />
+          </div>
+        </section>
+        <BottomNav active="Profile" workerMode go={go} />
+      </main>,
+    );
+
+  return shell(
+    <main className="rating-screen">
+      <button className="back-link" onClick={back}>
+        <Icon name="arrow" />
+      </button>
+      <button className="restart-logo" onClick={() => go("splash")} aria-label="Restart prototype">
+        <Logo compact />
+      </button>
+      <div className="star-hero">
+        <Icon name="star" size={90} filled />
+      </div>
+      <h1>Thank You!</h1>
+      <p>
+        Your service helps
+        <br />
+        others choose with confidence.
+      </p>
+      <Stars interactive />
+      <p className="rating-label">Excellent service</p>
+      <PrimaryButton onClick={() => flash("Profile opened")}>View Profile</PrimaryButton>
+    </main>,
+  );
+}
+
+function JobCard({
+  title,
+  location,
+  price,
+  time,
+  onApply,
+  applied = false,
+}: {
+  title: string;
+  location: string;
+  price: string;
+  time: string;
+  onApply: () => void;
+  applied?: boolean;
+}) {
+  return (
+    <article className="job-card">
+      <div className="row">
+        <div className="job-symbol">
+          <Icon name={title.startsWith("AC") ? "snow" : "bolt"} />
+        </div>
+        <div className="grow">
+          <strong>{title}</strong>
+          <small>
+            <Icon name="pin" size={13} />
+            {location}
+          </small>
+        </div>
+      </div>
+      <div className="job-footer">
+        <div>
+          <b>Rs. {price}</b>
+          <span> • {time}</span>
+        </div>
+        <button className={applied ? "applied" : ""} onClick={onApply}>
+          {applied ? "Applied ✓" : "Apply"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function RoleSwitchRow({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="role-switch-row" onClick={onClick}>
+      <span>
+        <Icon name="swap" />
+      </span>
+      <div>
+        <strong>Switch Role</strong>
+        <small lang="ur">کردار تبدیل کریں</small>
+      </div>
+      <Icon name="chevron" size={18} />
+    </button>
+  );
+}
+
+function ProfileRow({
+  icon,
+  title,
+  detail,
+  onClick,
+}: {
+  icon: IconName;
+  title: string;
+  detail: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button className="profile-row" onClick={onClick}>
+      <span>
+        <Icon name={icon} />
+      </span>
+      <div>
+        <strong>{title}</strong>
+        <small>{detail}</small>
+      </div>
+      <Icon name="chevron" size={18} />
+    </button>
+  );
+}
+
+export default function App() {
+  const [current, setCurrent] = useState<ScreenId>("splash");
+  const [history, setHistory] = useState<ScreenId[]>([]);
+  const [direction, setDirection] = useState<"forward" | "back" | "down">("forward");
+  const [role, setRole] = useState<Role | null>(null);
+  const [visitedRoles, setVisitedRoles] = useState<Role[]>([]);
+  const navigate = (next: ScreenId) => {
+    setDirection("forward");
+    setHistory((previous) => (next === "splash" ? [] : [...previous, current]));
+    setCurrent(next);
+  };
+  const openRoleSelection = () => {
+    setDirection("down");
+    setHistory((previous) => [...previous, current]);
+    setCurrent("home");
+  };
+  const selectRole = (nextRole: Role) => {
+    const repeatVisit = visitedRoles.includes(nextRole);
+    setRole(nextRole);
+    setVisitedRoles((roles) => (roles.includes(nextRole) ? roles : [...roles, nextRole]));
+    setHistory([]);
+    setDirection("forward");
+    setCurrent(
+      repeatVisit
+        ? nextRole === "customer"
+          ? "customer-dashboard"
+          : "worker-dashboard"
+        : nextRole === "customer"
+          ? "customer-welcome"
+          : "worker-welcome",
+    );
+  };
+  const goBack = () => {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setDirection("back");
+    setHistory((items) => items.slice(0, -1));
+    setCurrent(previous);
+  };
+  return (
+    <main className="app-viewport">
+      <div className={`screen-transition ${direction}`} key={current}>
+        <PhoneScreen
+          id={current}
+          go={navigate}
+          onBack={goBack}
+          role={role}
+          selectRole={selectRole}
+          openRoleSelection={openRoleSelection}
+          prototype
+        />
+      </div>
+    </main>
+  );
+}
