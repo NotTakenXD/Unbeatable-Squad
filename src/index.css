@@ -3192,3 +3192,117 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+/* ------------------------------------------------------------------
+   Pinned UI. Each screen is a positioning frame (the transform makes
+   `position: fixed` children stick to the phone screen rather than the
+   browser window), so the footer, the request button and the chat box
+   stay in place while the page content scrolls underneath them.
+   ------------------------------------------------------------------ */
+.app-viewport .screen {
+  transform: translateZ(0);
+}
+.bottom-nav {
+  position: fixed;
+  padding-bottom: 14px;
+  box-shadow: 0 -4px 14px #173d2910;
+}
+.bottom-nav button {
+  font-size: 10px;
+}
+.app-viewport .app-screen,
+.app-viewport .profile-screen {
+  padding-bottom: 100px;
+}
+
+.request-screen > .primary-button {
+  position: fixed;
+  z-index: 25;
+  bottom: 24px;
+  box-shadow: 0 8px 20px #0b5d3b40;
+}
+
+/* Chat: the message list scrolls, the input stays at the bottom. */
+.app-viewport .chat-screen {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 24px;
+}
+.chat-screen .messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.chat-input {
+  position: static;
+  flex: none;
+  margin-top: 8px;
+}
+
+/* App-like scrolling: no desktop scrollbars inside the phone frame. */
+.app-viewport .app-screen,
+.app-viewport .profile-screen,
+.app-viewport .home-screen,
+.chat-screen .messages {
+  scrollbar-width: none;
+}
+.app-viewport .app-screen::-webkit-scrollbar,
+.app-viewport .profile-screen::-webkit-scrollbar,
+.app-viewport .home-screen::-webkit-scrollbar,
+.chat-screen .messages::-webkit-scrollbar {
+  display: none;
+}
+
+/* Recent booking: name on one line, job + status underneath. */
+.recent-booking .grow {
+  display: flex;
+  flex-direction: column;
+}
+.recent-booking .grow strong {
+  font-size: 14px;
+}
+.recent-booking small {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-booking button {
+  font-size: 11px;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* Chip rows scroll sideways instead of wrapping or hiding chips off-screen. */
+.chips {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 0 20px;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+.chips button {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Switch Role lives in the empty middle of the status bar so it never
+   covers page content or a top bar's own buttons. */
+.global-role-switch {
+  top: 10px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 28px;
+  font-size: 10px;
+}
+
+.chart-card .section-title .muted {
+  color: var(--grey);
+  font-size: 11px;
+}

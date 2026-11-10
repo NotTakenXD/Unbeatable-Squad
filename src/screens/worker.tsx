@@ -868,7 +868,7 @@ export function Earnings({ go, back, flash }: ScreenProps) {
       <section className="chart-card">
         <div className="section-title compact-title">
           <h3>Weekly earnings</h3>
-          <span>Rs.</span>
+          <small className="muted">Mon – Sun (Rs.)</small>
         </div>
         <div className="bar-chart">
           {perDay.map((amount, index) => (
