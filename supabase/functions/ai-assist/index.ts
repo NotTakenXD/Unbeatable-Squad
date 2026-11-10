@@ -1,4 +1,5 @@
-// AI understanding of what a user *said* (speech-to-text output).
+// AI understanding of what a user *said* (speech-to-text output), using
+// Google Gemini (free tier).
 //
 // Tasks:
 //  - "worker_profile": a worker describes themselves by voice -> structured profile
@@ -6,15 +7,18 @@
 //
 // Speech recognition output is messy: Urdu script, Roman Urdu, English and
 // mixtures, with recognition mistakes ("G gyarah" = G-11, "paanch saal" = 5
-// years, "do hazaar" = 2000). Claude normalises it into the fields the app
+// years, "do hazaar" = 2000). Gemini normalises it into the fields the app
 // needs. The browser falls back to simple keyword rules if this function is
 // unavailable, and the user always reviews the result before saving.
 //
 // Security: requires a signed-in user (verify_jwt), caps input length, and
-// rate-limits each user so the API key can't be abused.
+// rate-limits each user so the API key can't be abused. The key is read from
+// the GEMINI_API_KEY secret and never reaches the browser.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const MODEL = "gemini-3.6-flash";
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,23 +29,24 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const SERVICES = ["electrician", "plumber", "carpenter", "ac-tech"];
-const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type: "null" }] });
 const str = { type: "string" };
-const int = { type: "integer" };
+const strOrNull = { type: ["string", "null"] };
+const intOrNull = { type: ["integer", "null"] };
 const strList = { type: "array", items: str };
+const serviceOrNull = { type: ["string", "null"], enum: [...SERVICES, null] };
 
 const SCHEMAS = {
   worker_profile: {
     type: "object",
     properties: {
-      name: nullable(str),
-      service: nullable({ type: "string", enum: SERVICES }),
-      years_experience: nullable(int),
-      area: nullable(str),
+      name: strOrNull,
+      service: serviceOrNull,
+      years_experience: intOrNull,
+      area: strOrNull,
       service_areas: strList,
       skills: strList,
-      hourly_rate: nullable(int),
-      fixed_rate_from: nullable(int),
+      hourly_rate: intOrNull,
+      fixed_rate_from: intOrNull,
       bio: str,
       summary_ur: str,
     },
@@ -49,21 +54,19 @@ const SCHEMAS = {
       "name", "service", "years_experience", "area", "service_areas", "skills",
       "hourly_rate", "fixed_rate_from", "bio", "summary_ur",
     ],
-    additionalProperties: false,
   },
   job_request: {
     type: "object",
     properties: {
       title: str,
       description: str,
-      service: nullable({ type: "string", enum: SERVICES }),
-      area: nullable(str),
-      budget: nullable(int),
+      service: serviceOrNull,
+      area: strOrNull,
+      budget: intOrNull,
       urgency: { type: "string", enum: ["now", "today", "tomorrow", "this_week", "flexible"] },
       summary_ur: str,
     },
     required: ["title", "description", "service", "area", "budget", "urgency", "summary_ur"],
-    additionalProperties: false,
   },
 } as const;
 
@@ -84,14 +87,15 @@ Rules:
 
 const PROMPTS: Record<Task, string> = {
   worker_profile: "A worker described themselves for their profile. Extract their profile.",
-  job_request: "A customer described a job they need done. Extract the job request. The title is a short English summary (max 8 words).",
+  job_request:
+    "A customer described a job they need done. Extract the job request. The title is a short English summary (max 8 words).",
 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) return json({ error: "ai_unavailable" }, 503);
 
   // Who is calling? (verify_jwt already rejected missing/invalid tokens)
@@ -125,33 +129,43 @@ Deno.serve(async (req) => {
   if (rateError) return json({ error: "Rate limiter unavailable" }, 500);
   if (!allowed) return json({ error: "Too many requests — try again later" }, 429);
 
-  const client = new Anthropic({ apiKey });
+  let response: Response;
   try {
-    const response = await client.beta.messages.create({
-      model: "claude-opus-5-5",
-      max_tokens: 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: {
-        effort: "low",
-        format: { type: "json_schema", schema: SCHEMAS[task] },
-      },
-      system: SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: `${PROMPTS[task]}\n\n<speech>\n${text}\n</speech>`,
+    response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts: [{ text: `${PROMPTS[task]}\n\n<speech>\n${text}\n</speech>` }] }],
+        generationConfig: {
+          thinkingConfig: { thinkingLevel: "low" },
+          responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: SCHEMAS[task] } },
         },
-      ],
-    } as Anthropic.Beta.MessageCreateParamsNonStreaming);
-
-    if (response.stop_reason === "refusal") return json({ error: "ai_declined" }, 422);
-    const block = response.content.find((b) => b.type === "text");
-    if (!block || block.type !== "text") return json({ error: "No answer" }, 502);
-    return json({ task, result: JSON.parse(block.text) });
-  } catch (error) {
-    if (error instanceof Anthropic.RateLimitError) return json({ error: "AI busy — try again" }, 429);
-    if (error instanceof Anthropic.APIError) return json({ error: `AI error ${error.status}` }, 502);
+      }),
+    });
+  } catch {
     return json({ error: "AI request failed" }, 502);
+  }
+
+  if (response.status === 429) return json({ error: "AI busy — try again in a minute" }, 429);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    console.error("Gemini error", response.status, detail);
+    return json({ error: `AI error ${response.status}` }, 502);
+  }
+
+  const data = await response.json();
+  const candidate = data?.candidates?.[0];
+  if (!candidate || candidate.finishReason === "SAFETY") return json({ error: "ai_declined" }, 422);
+  // Skip any "thought" parts; join the answer text.
+  const answer = (candidate.content?.parts ?? [])
+    .filter((p: { thought?: boolean; text?: string }) => !p.thought && typeof p.text === "string")
+    .map((p: { text: string }) => p.text)
+    .join("");
+  try {
+    return json({ task, result: JSON.parse(answer) });
+  } catch {
+    console.error("Unparseable AI answer", answer.slice(0, 300));
+    return json({ error: "AI answer was not valid" }, 502);
   }
 });

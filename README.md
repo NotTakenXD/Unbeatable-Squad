@@ -8,9 +8,9 @@ Built for the CUI Tech Fest *AI Web Forge* hackathon.
 
 | Outcome | How |
 |---|---|
-| **1. Onboarding** without a sign-up form | Worker taps **Start now — no email needed** (one-tap account, no email/password), then **speaks** their name, trade, experience, area and rates in Urdu, Roman Urdu or English. Speech → text (browser speech recognition), text → profile (Claude). The profile is **read back aloud in Urdu**; the worker taps one green button to confirm. |
+| **1. Onboarding** without a sign-up form | Worker taps **Start now — no email needed** (one-tap account, no email/password), then **speaks** their name, trade, experience, area and rates in Urdu, Roman Urdu or English. Speech → text (browser speech recognition), text → profile (Gemini). The profile is **read back aloud in Urdu**; the worker taps one green button to confirm. |
 | **2. Discovery** — nearby and available now | Search sorts workers **free first, then nearest, then best rated**. "Nearby" uses Islamabad's sector grid (G-10 → F-10 ≈ 2 km). "Available" excludes workers who are **on a job right now** (from real bookings, not just a toggle). |
-| **3. Communication** without typing | Customers describe the job by voice; Claude fills in service, area, budget and timing. Chat has a **mic button** (speech → message) and a **speaker on every message** (read aloud). Workers set their price with **tap buttons** (−500 / 1,000 / 1,500 / … / +500) and can hear it read back. |
+| **3. Communication** without typing | Customers describe the job by voice; Gemini fills in service, area, budget and timing. Chat has a **mic button** (speech → message) and a **speaker on every message** (read aloud). Workers set their price with **tap buttons** (−500 / 1,000 / 1,500 / … / +500) and can hear it read back. |
 | **4. Booking** — consistent free/engaged state | Customer accepts an offer → booking is created by a database function that **locks the worker and refuses a second booking within 3 hours**. Workers on a job show **On a job** everywhere, live. |
 | **5. Trust** | After the job is marked done, only that customer can leave a 1–5 star rating and comment (enforced in the database). Ratings and reviews appear on the worker's profile and in search. |
 
@@ -18,11 +18,11 @@ Built for the CUI Tech Fest *AI Web Forge* hackathon.
 
 | AI | Used for | Without it |
 |---|---|---|
-| **Claude Opus 5.5** (Anthropic API, via the `ai-assist` Supabase Edge Function) | Turns messy speech-recognition output (Urdu script, Roman Urdu, English, mixed; e.g. "G gyarah", "paanch saal", "do hazaar") into a structured worker profile or job request, plus a short Urdu summary for read-back. | Low-literacy workers would have to read and fill in a typed form. A simple keyword fallback (`src/lib/extract.ts`) catches only obvious English/Urdu words and is labelled "AI was unavailable" in the UI. |
+| **Google Gemini 3.6 Flash** (Gemini API free tier, via the `ai-assist` Supabase Edge Function) | Turns messy speech-recognition output (Urdu script, Roman Urdu, English, mixed; e.g. "G gyarah", "paanch saal", "do hazaar") into a structured worker profile or job request, plus a short Urdu summary for read-back. | Low-literacy workers would have to read and fill in a typed form. A simple keyword fallback (`src/lib/extract.ts`) catches only obvious English/Urdu words and is labelled "AI was unavailable" in the UI. |
 | **Browser speech recognition** (Web Speech API: Google in Chrome/Android, Microsoft in Edge, Apple in Safari) | Speech → text in Urdu (`ur-PK`) or English, for registration, job requests and chat. | Users would have to type. |
 | **Browser speech synthesis** | Reads profiles, jobs, prices and chat messages aloud in Urdu. | Users would have to read. |
 
-The Anthropic API key lives only in the Edge Function's secrets — never in the browser. Each user is limited to 40 AI calls per hour.
+The Gemini API key lives only in the Edge Function's secrets — never in the browser. Each user is limited to 40 AI calls per hour.
 
 ## Run it locally
 
@@ -43,7 +43,7 @@ Open http://localhost:3000. Speech recognition works best in **Chrome or Edge** 
   ```bash
   supabase functions deploy ai-assist
   supabase functions deploy quick-start --no-verify-jwt
-  supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+  supabase secrets set GEMINI_API_KEY=AIza...
   ```
 - **Auth settings** (Dashboard → Authentication): set **Site URL** to your deployed URL and add it to **Redirect URLs**; turn on **leaked password protection**.
 
@@ -80,7 +80,7 @@ Booking actions go through database functions: `accept_offer`, `decline_offer`, 
 ## Tools and credits
 
 - **Stack:** React 19, Vite 8, TypeScript, Tailwind CSS v4, Supabase (Postgres, Auth, Storage, Realtime, Edge Functions), Vercel hosting.
-- **Libraries:** `@supabase/supabase-js`, `@anthropic-ai/sdk`. Fonts: Inter and Noto Nastaliq Urdu (Google Fonts). Worker photos in `public/assets/`.
+- **Libraries:** `@supabase/supabase-js`. Fonts: Inter and Noto Nastaliq Urdu (Google Fonts). Worker photos in `public/assets/`.
 - **AI coding assistants:** the project was scaffolded in **Figma Make** and built with **Claude Code** (Anthropic). Both were used to write and review code during the event.
 
 ## Project layout
@@ -94,4 +94,4 @@ Booking actions go through database functions: `accept_offer`, `decline_offer`, 
 - `src/lib/nearby.ts`: Islamabad sector distance
 - `src/lib/extract.ts`: keyword fallback when AI is unavailable
 - `supabase/migrations/`: database schema and security rules
-- `supabase/functions/`: `ai-assist` (Claude) and `quick-start` (one-tap worker account)
+- `supabase/functions/`: `ai-assist` (Gemini) and `quick-start` (one-tap worker account)

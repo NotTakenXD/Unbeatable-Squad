@@ -296,7 +296,7 @@ export function WorkerDetailsForm({ go, back, flash }: ScreenProps) {
       {source === "ai" ? (
         <div className="ai-note">
           <span>AI</span>
-          <p>Claude understood these from what you said. Tap the speaker to hear them, then confirm.</p>
+          <p>AI (Gemini) understood these from what you said. Tap the speaker to hear them, then confirm.</p>
           <button className="listen-button" onClick={readBack} aria-label="Read my details aloud">
             <Icon name="speaker" size={18} />
           </button>
