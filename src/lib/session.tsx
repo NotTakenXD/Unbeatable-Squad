@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { getMyAccount, listServices, type Profile, type Service, type WorkerProfile } from "./api";
@@ -37,8 +37,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [worker, setWorker] = useState<WorkerProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [selection, setSelection] = useState<Selection>({});
-  const [accountReady, setAccountReady] = useState(false);
+  // Which user's profile/worker rows are currently loaded (undefined = nothing yet).
+  // Comparing against the live userId avoids acting on the previous account's data
+  // in the render right after a sign-in or sign-out.
+  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
   const userId = session?.user.id ?? null;
+  const accountReady = ready && loadedFor === userId;
+  const latestUserId = useRef(userId);
+  latestUserId.current = userId;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -57,16 +63,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
     const account = await getMyAccount(userId);
+    if (latestUserId.current !== userId) return; // user changed while loading
     setProfile(account.profile);
     setWorker(account.worker);
   }, [userId]);
 
   useEffect(() => {
-    setAccountReady(false);
+    let current = true;
     refreshAccount()
       .catch(() => undefined)
-      .finally(() => setAccountReady(true));
-  }, [refreshAccount]);
+      .finally(() => {
+        if (current) setLoadedFor(userId);
+      });
+    return () => {
+      current = false;
+    };
+  }, [refreshAccount, userId]);
 
   const select = useCallback(
     (patch: Partial<Selection>) => setSelection((prev) => ({ ...prev, ...patch })),
