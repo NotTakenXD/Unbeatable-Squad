@@ -161,7 +161,7 @@ function Home({
             ماہر کاریگر، آپ کے قریب
           </p>
         </div>
-        <img src="/assets/worker-hero.jpg" alt="Smiling skilled worker in a hard hat" />
+        <img src={`${import.meta.env.BASE_URL}assets/worker-hero.jpg`} alt="Smiling skilled worker in a hard hat" />
       </section>
       <div className="role-grid">
         <article className={`role-card ${role === "customer" ? "current-role" : ""}`}>
@@ -241,7 +241,7 @@ function WorkerWelcome({ go }: { go: (id: ScreenId) => void }) {
       <p lang="ur" dir="rtl">
         کام تلاش کرنے کے لیے تیار ہیں؟
       </p>
-      <img src="/assets/worker-hero.jpg" alt="Worker standing ready for work" />
+      <img src={`${import.meta.env.BASE_URL}assets/worker-hero.jpg`} alt="Worker standing ready for work" />
       <PrimaryButton onClick={() => go("voice-register")}>Start Registration</PrimaryButton>
     </main>
   );
